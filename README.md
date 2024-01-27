@@ -1,10 +1,10 @@
 # email_md
 
-Tool to pull IMAP emails and convert them to atomic Markdown files. 
+Tool to pull IMAP emails and convert them to atomic Markdown files.
 
 ## Dependencies
 
-The code in this repo relies heavily on my `message_md` classes which contain generic `Message``, `Person``, `Group` and other classes and the methods to convert messages to Markdown files. Be sure to read the `README` and the configuration guide for that repo first.
+The code in this repo relies heavily on my [message_md](https://github.com/thephm/message_md/tree/main/config) classes which contain generic `Message`, `Person`, `Group` and other classes and the methods to convert messages to Markdown files. Be sure to read the [README](https://github.com/thephm/message_md/blob/main/README.md) and the configuration [guide](https://github.com/thephm/message_md/blob/main/docs/guide.md) for that repo first.
 
 Also relies on markdownify so do this:
 
@@ -62,9 +62,9 @@ This part is tedious the first time and needs to be updated when you add new con
 
 ## Using email_md
 
-Once you have configured the tool and you the `people.json` file setup, you're ready to run this tool.
+Once you've configured the tool and the `people.json` file is setup, you're ready to run the tool.
 
-The command line options are described in the message_md repo.
+The command line options are described in the [message_md](https://github.com/thephm/message_md/tree/main/config) repo.
 
 Example:
 
