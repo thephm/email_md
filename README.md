@@ -38,9 +38,21 @@ The next step is to configure this tool.
 
 In the `config.json` file, set the following fields. For demonstration purposes, I've used Fastmail's settings:
 
+In this example, emails from only two folders would be fetched: `INBOX` and `Sent Items`:
+
 ```
     "imap-server": "imap.fastmail.com",
-    "email-folders": "INBOX",
+    "email-folders": "INBOX;Sent Items",
+    "not-email-folders": "",
+    "email-account": "993",
+```
+
+To use all email folders and exclude specific ones (and their sub-folders), use the `not-email-folders` setting:
+
+```
+    "imap-server": "imap.fastmail.com",
+    "email-folders": "",
+    "not-email-folders": "Spam;Shopping;Trash;Health",
     "email-account": "993",
 ```
 

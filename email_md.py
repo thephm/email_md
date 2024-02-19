@@ -24,6 +24,11 @@ import message
 import person
 import attachment
 
+import logging
+
+import warnings
+from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning 
+
 INBOX = "INBOX"
 SENT = "SENT"
 
@@ -110,11 +115,17 @@ def parseHeader(theEmail, theMessage):
     subject = ""
 
     # decode the email subject
-    subject, encoding = decode_header(theEmail["Subject"])[0]
-
+    try:
+        subject, encoding = decode_header(theEmail["Subject"])[0]
+    except Exception as e:
+        return False
+    
     if encoding and isinstance(subject, bytes):
-        # if it's a bytes, decode to str
-        subject = subject.decode(encoding)
+        try:
+            # if it's a bytes, decode to str
+            subject = subject.decode(encoding)
+        except:
+            return False
     
     theMessage.subject = subject
 
@@ -125,20 +136,20 @@ def parseHeader(theEmail, theMessage):
     dateHeader = theEmail.get('Date')
 
     # remove extra info after tz offset
-    dateHeader = dateHeader.split(' (', 1)[0] 
-    
-    try:
-        parsedDate = parser.parse(dateHeader)
+    if dateHeader:
+        try:
+            dateHeader = dateHeader.split(' (', 1)[0]
+            parsedDate = parser.parse(dateHeader)
 
-        # format the date and time
-        dateStr = parsedDate.strftime('%Y-%m-%d')
-        timeStr = parsedDate.strftime('%H:%M')
+            # format the date and time
+            dateStr = parsedDate.strftime('%Y-%m-%d')
+            timeStr = parsedDate.strftime('%H:%M')
 
-        theMessage.timeStamp = int(parsedDate.timestamp())
-        theMessage.dateStr = dateStr
-        theMessage.timeStr = timeStr
-    except:
-        return False
+            theMessage.timeStamp = int(parsedDate.timestamp())
+            theMessage.dateStr = dateStr
+            theMessage.timeStr = timeStr
+        except:
+            return False
 
     # set the "toSlug" to the person that was passed in `-m slug`
     if theConfig.me:
@@ -147,8 +158,13 @@ def parseHeader(theEmail, theMessage):
     # decode email sender
     From, encoding = decode_header(theEmail.get("From"))[0]
     if encoding and isinstance(From, bytes):
-        From = From.decode(encoding)
-    emailAddresses = getEmailAddress(From)
+        try:
+            From = From.decode(encoding)
+        except:
+            pass
+
+    if From:
+        emailAddresses = getEmailAddress(From)
 
     # get the `slug` of the sender
     person = theConfig.getPersonByEmail(emailAddresses)
@@ -218,7 +234,7 @@ def downloadAttachment(part, theMessage):
                 pass
 
         except Exception as e:
-            print(e)
+            logging.error(e)
             pass
 
 # -----------------------------------------------------------------------------
@@ -236,13 +252,22 @@ def downloadAttachment(part, theMessage):
 def parseMultiPart(theEmail, theMessage):
 
     theBody = ""
+    contentDisposition = ""
+    contentType = ""
     
     # iterate over email parts
     for part in theEmail.walk():
-        
+
         # extract content type of email
-        contentType = part.get_content_type()
-        contentDisposition = str(part.get("Content-Disposition"))
+        try:
+            contentType = part.get_content_type()
+        except:
+            pass
+
+        try:
+            contentDisposition = str(part.get("Content-Disposition"))
+        except:
+            pass
 
         try:
             theBody = part.get_payload(decode=True).decode()
@@ -492,6 +517,26 @@ def cleanBody(theEmail, theMessage):
 
     return result
 
+# parse a specific email and append it to the list Messages collection
+def parseEmail(theEmail, theMessage):
+
+    for response in theEmail:
+        if isinstance(response, tuple):
+            
+            try:
+                # parse a bytes email into a message object
+                thisEmail = email.message_from_bytes(response[1])
+
+                if theConfig.debug:
+                    logging.info(f"ID: {id}")
+
+                if parseHeader(thisEmail, theMessage):
+                    if (theMessage.fromSlug):
+                        parseBody(thisEmail, theMessage)
+                        cleanBody(thisEmail, theMessage)
+            except:
+                pass
+
 # -----------------------------------------------------------------------------
 #
 # Load the emails from a specific IMAP server folder
@@ -504,15 +549,33 @@ def cleanBody(theEmail, theMessage):
 #
 # Returns: the number of emails successfully parsed
 #
+# Notes:
+#
+# - was going to search by specific email addresses I know about but decided
+#   against that approach
+#
+#   status, results = imap.search(None, '(HEADER FROM "spongebob@gmail.com")')
+#
 # -----------------------------------------------------------------------------
 def fetchEmails(imap, folder, messages):
 
-    status, emails = imap.select(folder)
-
     count = 0
+
+    # for some reason, some folders have a space but no quotes around them 
+    # and others do have quotes. So, if the folder contains a space and 
+    # doesn't have double quotes, add them
+    if ' ' in folder and not (folder.startswith('"') and folder.endswith('"')):
+        folder = '"' + folder + '"'
+
+    try:
+        status, emails = imap.select(folder)
+    except Exception as e:
+        logging.error(e)
+        return count
     
     if status != 'OK':
-        return 0
+        logging.error(status)
+        return count
 
     # get the total number of emails in the folder
     emails = int(emails[0])
@@ -521,33 +584,32 @@ def fetchEmails(imap, folder, messages):
         # fetch the email message by ID
         response, thisEmail = imap.fetch(str(i), "(RFC822)")
 
-        for response in thisEmail:
-            if isinstance(response, tuple):
-                
-                # parse a bytes email into a message object
-                thisEmail = email.message_from_bytes(response[1])
+         # create a holder for the parsed email
+        theMessage = message.Message()
 
-                # create a holder for the parsed email
-                theMessage = message.Message()
+        parseEmail(thisEmail, theMessage)
 
-                if parseHeader(thisEmail, theMessage):
-                    if (theMessage.fromSlug):
-                        parseBody(thisEmail, theMessage)
-                        cleanBody(thisEmail, theMessage)
-
-        # let the user know where processing is at
-        print(f"Folder: {folder}  Countdown: {i-1}  Found: {count}  Date: {theMessage.dateStr}", end="\r")
-        
-        # stop if this message was sent before the start date 
-        messageDate = datetime.strptime(theMessage.dateStr, '%Y-%m-%d')
-        fromDate = datetime.strptime(theConfig.fromDate, '%Y-%m-%d')
-        if messageDate < fromDate:
-            continue
-
-        if theMessage.fromSlug and len(theMessage.toSlugs):
+        if theMessage.fromSlug:
             count += 1
             messages.append(theMessage)
 
+        # remove the double quotes around the folder name
+        if folder.startswith('"') and folder.endswith('"'):
+            folder = folder[1:-1]
+
+        # let the user know where processing is at
+        status = f"Folder: {folder}  " + f"Countdown: {i-1}  "
+        status += f"Found: {count}  Date: {theMessage.dateStr} "
+        status = status + ' ' * (120 - len(status))
+        print(status, end="\r")
+        
+        # stop if this message was sent before the start date
+        if theMessage.dateStr:
+            messageDate = datetime.strptime(theMessage.dateStr, '%Y-%m-%d')
+            fromDate = datetime.strptime(theConfig.fromDate, '%Y-%m-%d')
+            if messageDate < fromDate:
+                continue
+ 
         if count == theConfig.maxMessages:
             return count
 
@@ -570,7 +632,7 @@ def fetchEmails(imap, folder, messages):
 def loadMessages(destFile, messages, reactions, theConfig):
 
     count = 0
-    folder = INBOX
+    folders = []
 
     if not (theConfig.imapServer and theConfig.emailAccount and theConfig.password):
         return 0
@@ -578,14 +640,34 @@ def loadMessages(destFile, messages, reactions, theConfig):
     # create an IMAP4 class with SSL 
     imap = imaplib.IMAP4_SSL(theConfig.imapServer)
 
-    # authenticate
+    # authenticate, get the list of folders, fetch the emails
     try:
         imap.login(theConfig.emailAccount, theConfig.password)
 
-        # go fetch!
-        count = fetchEmails(imap, folder, messages)
+        if len(theConfig.emailFolders) > 0:
+            folders = theConfig.emailFolders
+        else:
+            # log the list of folders
+            logging.info(imap.list()[1])
+
+            for i in imap.list()[1]:
+                l = i.decode().split(' "/" ')
+                folders.append(l[1])
+
+        # remove any folders specified in `not-email-folders` 
+        # setting and any of it's subfolders
+        for xFolder in theConfig.notEmailFolders:
+            for yFolder in folders:
+                parts = yFolder.split('/')
+                if parts[0] == xFolder:
+                    folders.remove(yFolder)
+
+        for folder in folders:
+            # only fetch emails from folders not in the exclude list
+            count += fetchEmails(imap, folder, messages)
+        
     except Exception as e:
-        print(e)
+        logging.error(e)
 
     # close the connection and logout
     try:
@@ -597,6 +679,17 @@ def loadMessages(destFile, messages, reactions, theConfig):
     return count
 
 # main
+
+# Was getting the warning below and found no easy way to supress it so using: 
+# https://stackoverflow.com/questions/36039724/suppress-warning-of-url-in-beautifulsoup
+#
+# /home/bjansen/.local/lib/python3.10/site-packages/markdownify/__init__.py:96:
+# MarkupResemblesLocatorWarning: The input looks more like a URL than markup. 
+# You may want to use an HTTP client like requests to get the document behind 
+# the URL, and feed that document to Beautiful Soup.
+#  soup = BeautifulSoup(html, 'html.parser')
+#
+warnings.filterwarnings('ignore', category=MarkupResemblesLocatorWarning)
 
 theMessages = []
 theReactions = [] 
