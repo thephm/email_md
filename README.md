@@ -14,9 +14,15 @@ pip install markdownify
 
 Refer to your email provider's help pages to find out how to get an application password. If they require two-factor authentication (2FA), then this tool won't work for you.
 
-Below are the steps to setup an application password for Fastmail.
+### Gmail
+
+To setup an application password for Gmail, visit [Sign in with app passwords](https://support.google.com/accounts/answer/185833?hl=en)
+
+For the IMAP server use: `imap.gmail.com`
 
 ### Fastmail
+
+Here are the steps to setup an application password for Fastmail.
 
 1. Click "Settings" then "Privacy and Security"
 2. Click "New App Password"
