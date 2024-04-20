@@ -1,4 +1,4 @@
-import imaplib
+﻿import imaplib
 import email
 from email.header import decode_header
 import webbrowser
@@ -38,7 +38,7 @@ SENT = "SENT"
 # or check this page: https://www.systoolsgroup.com/imap/
 # use `i <imapServer>`
 
-def getEmailAddress(text):
+def get_email_address(text):
     
     import re
 
@@ -73,7 +73,7 @@ def getEmailAddress(text):
 # "<!-- ... !-->, and "On ... YYYY ... wrote:" removed 
 #
 # -----------------------------------------------------------------------------
-def removeReply(text):
+def remove_reply(text):
 
     result = text
 
@@ -100,8 +100,8 @@ def removeReply(text):
 #
 # Parameters:
 # 
-#   - theEmail - the actual email
-#   - theMessage - where the parsed email message goes
+#   - the_email - the actual email
+#   - the_message - where the parsed email message goes
 #
 # Returns: 
 #
@@ -109,14 +109,14 @@ def removeReply(text):
 #   - False if ran into an issue
 #
 # -----------------------------------------------------------------------------
-def parseHeader(theEmail, theMessage):
+def parse_header(the_email, the_message):
 
     result = True   # assume success
     subject = ""
 
     # decode the email subject
     try:
-        subject, encoding = decode_header(theEmail["Subject"])[0]
+        subject, encoding = decode_header(the_email["Subject"])[0]
     except Exception as e:
         return False
     
@@ -127,36 +127,36 @@ def parseHeader(theEmail, theMessage):
         except:
             return False
     
-    theMessage.subject = subject
+    the_message.subject = subject
 
     # get the funky IMAP id of the message
-    theMessage.id = theEmail.get('Message-ID')
+    the_message.id = the_email.get('Message-ID')
 
     # get the date from the header
-    dateHeader = theEmail.get('Date')
+    date_header = the_email.get('Date')
 
     # remove extra info after tz offset
-    if dateHeader:
+    if date_header:
         try:
-            dateHeader = dateHeader.split(' (', 1)[0]
-            parsedDate = parser.parse(dateHeader)
+            date_header = date_header.split(' (', 1)[0]
+            parsed_date = parser.parse(date_header)
 
             # format the date and time
-            dateStr = parsedDate.strftime('%Y-%m-%d')
-            timeStr = parsedDate.strftime('%H:%M')
+            date_str = parsed_date.strftime('%Y-%m-%d')
+            time_str = parsed_date.strftime('%H:%M')
 
-            theMessage.timeStamp = int(parsedDate.timestamp())
-            theMessage.dateStr = dateStr
-            theMessage.timeStr = timeStr
+            the_message.timeStamp = int(parsed_date.timestamp())
+            the_message.dateStr = date_str
+            the_message.timeStr = time_str
         except:
             return False
 
     # set the "toSlug" to the person that was passed in `-m slug`
-    if theConfig.me:
-        theMessage.toSlugs.append(theConfig.me.slug)
+    if the_config.me:
+        the_message.toSlugs.append(the_config.me.slug)
 
     # decode email sender
-    From, encoding = decode_header(theEmail.get("From"))[0]
+    From, encoding = decode_header(the_email.get("From"))[0]
     if encoding and isinstance(From, bytes):
         try:
             From = From.decode(encoding)
@@ -164,34 +164,14 @@ def parseHeader(theEmail, theMessage):
             pass
 
     if From:
-        emailAddresses = getEmailAddress(From)
+        email_addresses = get_email_address(From)
 
     # get the `slug` of the sender
-    person = theConfig.getPersonByEmail(emailAddresses)
+    person = the_config.getPersonByEmail(email_addresses)
     if person:
-        theMessage.fromSlug = person.slug
+        the_message.fromSlug = person.slug
     else: 
         pass
-
-    # Decode email recipients (To:)
-#    whoTo, encoding = decode_header(theEmail.get("To"))[0]
-#    if encoding and isinstance(whoTo, bytes):
-#        whoTo = whoTo.decode(encoding)
-#
-#    toEmailAddresses = getEmailAddress(whoTo)
-#
-#   slugs = []
-#    for emailAddress in toEmailAddresses:
-#        slugs.append(theConfig.getPersonByEmail(emailAddress))
-#
-    # Decode email recipients (Cc:)
-#    cc, encoding = decode_header(theEmail.get("Cc"))[0]
-#    if encoding and isinstance(cc, bytes):
-#        cc = cc.decode(encoding)
-#
-#   ccEmailAddresses = getEmailAddress(cc)
-#    for emailAddress in ccEmailAddresses:
-#        slugs.append(theConfig.getPersonByEmail(emailAddress))
 
     return result
 
@@ -208,28 +188,28 @@ def parseHeader(theEmail, theMessage):
 # Returns: nothing
 #
 # -----------------------------------------------------------------------------
-def downloadAttachment(part, theMessage):
+def download_attachment(part, the_message):
 
     filename = part.get_filename()
 
     # download the attachment
     if filename:
         # find the place to put it
-        folder = os.path.join(theConfig.sourceFolder, theConfig.attachmentsSubFolder)
-        filepath = os.path.join(folder, filename)
+        folder = os.path.join(the_config.sourceFolder, the_config.attachmentsSubFolder)
+        file_path = os.path.join(folder, filename)
 
         try:
             # download attachment and save it
-            open(filepath, "wb").write(part.get_payload(decode=True))
+            open(file_path, "wb").write(part.get_payload(decode=True))
 
             # create and fill the Attachment object
-            theAttachment = attachment.Attachment()
+            the_attachment = attachment.Attachment()
             try:
-                theAttachment.id = filename
-                theAttachment.fileName = filename
-                theAttachment.type = attachment.getMIMEType(filename)
-                theAttachment.customFileName = filename
-                theMessage.addAttachment(theAttachment)
+                the_attachment.id = filename
+                the_attachment.fileName = filename
+                the_attachment.type = attachment.getMIMEType(filename)
+                the_attachment.customFileName = filename
+                the_message.addAttachment(the_attachment)
             except:
                 pass
 
@@ -243,41 +223,41 @@ def downloadAttachment(part, theMessage):
 #
 # Parameters:
 # 
-#   - theEmail - the actual email
-#   - theMessage - where the parsed email message goes
+#   - the_email - the actual email
+#   - the_message - where the parsed email message goes
 #
 # Returns: nothing
 #
 # -----------------------------------------------------------------------------
-def parseMultiPart(theEmail, theMessage):
+def parse_multi_part(the_email, the_message):
 
-    theBody = ""
-    contentDisposition = ""
-    contentType = ""
+    the_body = ""
+    content_disposition = ""
+    content_type = ""
     
     # iterate over email parts
-    for part in theEmail.walk():
+    for part in the_email.walk():
 
         # extract content type of email
         try:
-            contentType = part.get_content_type()
+            content_type = part.get_content_type()
         except:
             pass
 
         try:
-            contentDisposition = str(part.get("Content-Disposition"))
+            content_disposition = str(part.get("Content-Disposition"))
         except:
             pass
 
         try:
-            theBody = part.get_payload(decode=True).decode()
-            if theBody and contentType == "text/plain" and "attachment" not in contentDisposition:
-                theMessage.body = md(theBody)
+            the_body = part.get_payload(decode=True).decode()
+            if the_body and content_type == "text/plain" and "attachment" not in content_disposition:
+                the_message.body = md(the_body)
         except:
             pass
 
-        if "attachment" in contentDisposition:
-            downloadAttachment(part, theMessage)
+        if "attachment" in content_disposition:
+            download_attachment(part, the_message)
 
 # -----------------------------------------------------------------------------
 #
@@ -285,28 +265,28 @@ def parseMultiPart(theEmail, theMessage):
 #
 # Parameters:
 # 
-#   - theEmail - the actual email
-#   - theMessage - where the parsed email message goes
+#   - the_email - the actual email
+#   - the_message - where the parsed email message goes
 #
 # Returns: nothing
 #
 # -----------------------------------------------------------------------------
-def parseBody(theEmail, theMessage):
+def parse_body(the_email, theMessage):
 
-    theBody = ""
+    the_body = ""
 
     # if the email message is multipart
-    if theEmail.is_multipart():
-        parseMultiPart(theEmail, theMessage)
+    if the_email.is_multipart():
+        parse_multi_part(the_email, the_message)
     else:
         # extract the content type of the email
-        contentType = theEmail.get_content_type()
+        content_type = the_email.get_content_type()
 
         # get the email body
         try:
-            theBody = theEmail.get_payload(decode=True).decode()
-            if theBody:
-                theMessage.body = md(theBody)
+            the_body = the_email.get_payload(decode=True).decode()
+            if the_body:
+                the_message.body = md(the_body)
         
         # sometimes got errors like this, so ignoring the email
         # 'utf-8' codec can't decode byte 0x80 in position 8: invalid start byte
@@ -319,8 +299,8 @@ def parseBody(theEmail, theMessage):
 #
 # Parameters:
 # 
-#   - theEmail - the actual email
-#   - theMessage - where the parsed email message goes
+#   - the_email - the actual email
+#   - the_message - where the parsed email message goes
 #
 # Notes:
 #
@@ -332,12 +312,12 @@ def parseBody(theEmail, theMessage):
 #   - False if it wasn't
 #
 # -----------------------------------------------------------------------------
-def wasForwarded(theEmail, theMessage):
+def wasForwarded(the_email, the_message):
 
     result = False
 
-    references = theEmail.get('References')
-    in_reply_to = theEmail.get('In-Reply-To')
+    references = the_email.get('References')
+    in_reply_to = the_email.get('In-Reply-To')
 
     # if References and In-Reply-To are empty, might be a forwarded message
     if not references and not in_reply_to:
@@ -345,7 +325,7 @@ def wasForwarded(theEmail, theMessage):
     
     # if the subject line starts with "Fwd:" or "fwd" or "Fw:" or "fw", then
     # it was likely a forwarded email
-    subject = theMessage.subject
+    subject = the_message.subject
     pattern = re.compile(r'^fw.*:', re.IGNORECASE)
 
     # avoid "TypeError: cannot use a string pattern on a bytes-like object"
@@ -358,30 +338,30 @@ def isEmailHeader(line):
     # check if the line resembles an email header
     return re.match(r'^\s*(From:|Sent:|To:|Cc:|Subject:)', line, re.IGNORECASE) is not None
 
-def joinLines(body):
+def join_lines(body):
 
     # reassemble lines, preserving paragraph breaks
     lines = body.splitlines()
     paragraphs = []
-    currentParagraph = ''
+    current_paragraph = ''
 
     for line in lines:
         if isEmailHeader(line):
             # if the line resembles an email header, start a new paragraph
-            if currentParagraph:
-                paragraphs.append(currentParagraph.strip())
-                currentParagraph = ''
-            currentParagraph += line.strip() + '\n'
+            if current_paragraph:
+                paragraphs.append(current_paragraph.strip())
+                current_paragraph = ''
+            current_paragraph += line.strip() + '\n'
         elif line.strip():  # if the line is not empty
-            currentParagraph += line + ' '
+            current_paragraph += line + ' '
         else:  # if the line is empty, it indicates a new paragraph
-            if currentParagraph and not currentParagraph.isspace():
-                paragraphs.append(currentParagraph.strip())
-            currentParagraph = ''
+            if current_paragraph and not current_paragraph.isspace():
+                paragraphs.append(current_paragraph.strip())
+            current_paragraph = ''
 
     # add the last paragraph if there's any
-    if currentParagraph and not currentParagraph.isspace():
-        paragraphs.append(currentParagraph.strip())
+    if current_paragraph and not current_paragraph.isspace():
+        paragraphs.append(current_paragraph.strip())
 
     # join lines within each paragraph, excluding email headers
     body = '\n\n'.join(para for para in paragraphs)
@@ -395,8 +375,8 @@ def joinLines(body):
 #
 # Parameters:
 # 
-#   - theEmail - the actual email
-#   - theMessage - where the parsed email message goes
+#   - the_email - the actual email
+#   - the_message - where the parsed email message goes
 #
 # Returns: 
 #
@@ -404,9 +384,9 @@ def joinLines(body):
 #   - False if ran into an 
 #
 # -----------------------------------------------------------------------------
-def cleanBody(theEmail, theMessage):
+def clean_body(the_email, the_message):
 
-    text = theMessage.body
+    text = the_message.body
 
     result = False
 
@@ -445,7 +425,7 @@ def cleanBody(theEmail, theMessage):
     pattern4 = re.compile(r'Sent from .*|Get (Outlook for iOS|.*? for Android)|Sent via .*', re.IGNORECASE)
     text = pattern4.sub('', text)
 
-    text = removeReply(text)
+    text = remove_reply(text)
 
     # add backticks around text with "#" so they aren't seen as tags in 
     # Obsidian e.g. `#bob` 
@@ -478,7 +458,7 @@ def cleanBody(theEmail, theMessage):
         pass
 
     # reassemble lines to avoid word splitting
-    text = joinLines(text)
+    text = join_lines(text)
 
     # get rid of "p.MsoNormal,p.MsoNoSpacing{margin:0}"
     text = text.replace('p.MsoNormal,p.MsoNoSpacing{margin:0}', ' ') 
@@ -518,22 +498,22 @@ def cleanBody(theEmail, theMessage):
     return result
 
 # parse a specific email and append it to the list Messages collection
-def parseEmail(theEmail, theMessage):
+def parse_email(this_email, the_message):
 
-    for response in theEmail:
+    for response in this_email:
         if isinstance(response, tuple):
             
             try:
                 # parse a bytes email into a message object
-                thisEmail = email.message_from_bytes(response[1])
+                this_email = email.message_from_bytes(response[1])
 
-                if theConfig.debug:
+                if the_config.debug:
                     logging.info(f"ID: {id}")
 
-                if parseHeader(thisEmail, theMessage):
-                    if (theMessage.fromSlug):
-                        parseBody(thisEmail, theMessage)
-                        cleanBody(thisEmail, theMessage)
+                if parse_header(this_email, the_message):
+                    if (the_message.fromSlug):
+                        parse_body(this_email, the_message)
+                        clean_body(this_email, the_message)
             except:
                 pass
 
@@ -557,7 +537,7 @@ def parseEmail(theEmail, theMessage):
 #   status, results = imap.search(None, '(HEADER FROM "spongebob@gmail.com")')
 #
 # -----------------------------------------------------------------------------
-def fetchEmails(imap, folder, messages):
+def fetch_emails(imap, folder, messages):
 
     count = 0
 
@@ -582,16 +562,16 @@ def fetchEmails(imap, folder, messages):
 
     for i in range(emails, 0, -1):
         # fetch the email message by ID
-        response, thisEmail = imap.fetch(str(i), "(RFC822)")
+        response, this_email = imap.fetch(str(i), "(RFC822)")
 
          # create a holder for the parsed email
-        theMessage = message.Message()
+        the_message = message.Message()
 
-        parseEmail(thisEmail, theMessage)
+        parse_email(this_email, the_message)
 
-        if theMessage.fromSlug:
+        if the_message.fromSlug:
             count += 1
-            messages.append(theMessage)
+            messages.append(the_message)
 
         # remove the double quotes around the folder name
         if folder.startswith('"') and folder.endswith('"'):
@@ -599,18 +579,18 @@ def fetchEmails(imap, folder, messages):
 
         # let the user know where processing is at
         status = f"Folder: {folder}  " + f"Countdown: {i-1}  "
-        status += f"Found: {count}  Date: {theMessage.dateStr} "
-        status = status + ' ' * (120 - len(status))
+        status += f"Found: {count}  Date: {the_message.dateStr} "
+        status += ' ' * (120 - len(status))
         print(status, end="\r")
         
         # stop if this message was sent before the start date
-        if theMessage.dateStr:
-            messageDate = datetime.strptime(theMessage.dateStr, '%Y-%m-%d')
-            fromDate = datetime.strptime(theConfig.fromDate, '%Y-%m-%d')
-            if messageDate < fromDate:
+        if the_message.dateStr:
+            message_date = datetime.strptime(the_message.dateStr, '%Y-%m-%d')
+            from_date = datetime.strptime(the_config.fromDate, '%Y-%m-%d')
+            if message_date < from_date:
                 continue
  
-        if count == theConfig.maxMessages:
+        if count == the_config.maxMessages:
             return count
 
     return count
@@ -621,31 +601,31 @@ def fetchEmails(imap, folder, messages):
 #
 # Parameters:
 # 
-#   - destFile - not used but needed for the interface
+#   - dest_file - not used but needed for the interface
 #   - messages - where the Message objects will go
 #   - reactions - not used but needed for the interface
-#   - theConfig - specific settings 
+#   - the_config - specific settings 
 #
 # Returns: the number of messages loaded
 #
 # -----------------------------------------------------------------------------
-def loadMessages(destFile, messages, reactions, theConfig):
+def load_messages(dest_file, messages, reactions, the_config):
 
     count = 0
     folders = []
 
-    if not (theConfig.imapServer and theConfig.emailAccount and theConfig.password):
+    if not (the_config.imapServer and the_config.emailAccount and the_config.password):
         return 0
 
     # create an IMAP4 class with SSL 
-    imap = imaplib.IMAP4_SSL(theConfig.imapServer)
+    imap = imaplib.IMAP4_SSL(the_config.imapServer)
 
     # authenticate, get the list of folders, fetch the emails
     try:
-        imap.login(theConfig.emailAccount, theConfig.password)
+        imap.login(the_config.emailAccount, the_config.password)
 
-        if len(theConfig.emailFolders) > 0:
-            folders = theConfig.emailFolders
+        if len(the_config.emailFolders) > 0:
+            folders = the_config.emailFolders
         else:
             # log the list of folders
             logging.info(imap.list()[1])
@@ -656,16 +636,20 @@ def loadMessages(destFile, messages, reactions, theConfig):
 
         # remove any folders specified in `not-email-folders` 
         # setting and any of it's subfolders
-        for xFolder in theConfig.notEmailFolders:
-            for yFolder in folders:
-                parts = yFolder.split('/')
-                if parts[0] == xFolder:
-                    folders.remove(yFolder)
+        for x_folder in the_config.notEmailFolders:
+            for y_folder in folders:
+                parts = y_folder.split('/')
+                if parts[0] == x_folder:
+                    folders.remove(y_folder)
 
         for folder in folders:
             # only fetch emails from folders not in the exclude list
-            count += fetchEmails(imap, folder, messages)
-        
+            count += fetch_emails(imap, folder, messages)
+            if count >= the_config.maxMessages:
+                imap.close()
+                imap.logout()
+                return count
+
     except Exception as e:
         logging.error(e)
 
@@ -691,17 +675,17 @@ def loadMessages(destFile, messages, reactions, theConfig):
 #
 warnings.filterwarnings('ignore', category=MarkupResemblesLocatorWarning)
 
-theMessages = []
-theReactions = [] 
+the_messages = []
+the_reactions = [] 
 
-theConfig = config.Config()
+the_config = config.Config()
 
-if message_md.setup(theConfig, markdown.YAML_SERVICE_EMAIL, True):
+if message_md.setup(the_config, markdown.YAML_SERVICE_EMAIL, True):
 
-    theConfig.reversed = False
+    the_config.reversed = False
 
     # needs to be after setup so the command line parameters override the
     # values defined in the settings file
-    message_md.getMarkdown(theConfig, loadMessages, theMessages, theReactions)
+    message_md.get_markdown(the_config, load_messages, the_messages, the_reactions)
 
     print("\n")
