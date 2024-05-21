@@ -156,20 +156,20 @@ def parse_header(the_email, the_message):
         the_message.toSlugs.append(the_config.me.slug)
 
     # decode email sender
-    From, encoding = decode_header(the_email.get("From"))[0]
-    if encoding and isinstance(From, bytes):
+    the_from, encoding = decode_header(the_email.get("From"))[0]
+    if encoding and isinstance(the_from, bytes):
         try:
-            From = From.decode(encoding)
+            the_from = the_from.decode(encoding)
         except:
             pass
 
-    if From:
-        email_addresses = get_email_address(From)
+    if the_from:
+        email_addresses = get_email_address(the_from)
 
     # get the `slug` of the sender
-    person = the_config.getPersonByEmail(email_addresses)
+    person = the_config.get_person_by_email(email_addresses)
     if person:
-        the_message.fromSlug = person.slug
+        the_message.from_slug = person.slug
     else: 
         pass
 
@@ -195,7 +195,7 @@ def download_attachment(part, the_message):
     # download the attachment
     if filename:
         # find the place to put it
-        folder = os.path.join(the_config.sourceFolder, the_config.attachmentsSubFolder)
+        folder = os.path.join(the_config.source_folder, the_config.attachments_subfolder)
         file_path = os.path.join(folder, filename)
 
         try:
@@ -206,10 +206,10 @@ def download_attachment(part, the_message):
             the_attachment = attachment.Attachment()
             try:
                 the_attachment.id = filename
-                the_attachment.fileName = filename
-                the_attachment.type = attachment.getMIMEType(filename)
-                the_attachment.customFileName = filename
-                the_message.addAttachment(the_attachment)
+                the_attachment.filename = filename
+                the_attachment.type = attachment.get_mime_type(filename)
+                the_attachment.custom_filename = filename
+                the_message.add_attachment(the_attachment)
             except:
                 pass
 
@@ -271,7 +271,7 @@ def parse_multi_part(the_email, the_message):
 # Returns: nothing
 #
 # -----------------------------------------------------------------------------
-def parse_body(the_email, theMessage):
+def parse_body(the_email, the_message):
 
     the_body = ""
 
@@ -569,7 +569,7 @@ def fetch_emails(imap, folder, messages):
 
         parse_email(this_email, the_message)
 
-        if the_message.fromSlug:
+        if the_message.from_slug:
             count += 1
             messages.append(the_message)
 
@@ -579,18 +579,18 @@ def fetch_emails(imap, folder, messages):
 
         # let the user know where processing is at
         status = f"Folder: {folder}  " + f"Countdown: {i-1}  "
-        status += f"Found: {count}  Date: {the_message.dateStr} "
+        status += f"Found: {count}  Date: {the_message.date_str} "
         status += ' ' * (120 - len(status))
         print(status, end="\r")
         
         # stop if this message was sent before the start date
         if the_message.dateStr:
-            message_date = datetime.strptime(the_message.dateStr, '%Y-%m-%d')
-            from_date = datetime.strptime(the_config.fromDate, '%Y-%m-%d')
+            message_date = datetime.strptime(the_message.date_str, '%Y-%m-%d')
+            from_date = datetime.strptime(the_config.from_date, '%Y-%m-%d')
             if message_date < from_date:
                 continue
  
-        if count == the_config.maxMessages:
+        if count == the_config.max_messages:
             return count
 
     return count
@@ -614,7 +614,7 @@ def load_messages(dest_file, messages, reactions, the_config):
     count = 0
     folders = []
 
-    if not (the_config.imapServer and the_config.emailAccount and the_config.password):
+    if not (the_config.imapServer and the_config.email_account and the_config.password):
         return 0
 
     # create an IMAP4 class with SSL 
@@ -622,10 +622,10 @@ def load_messages(dest_file, messages, reactions, the_config):
 
     # authenticate, get the list of folders, fetch the emails
     try:
-        imap.login(the_config.emailAccount, the_config.password)
+        imap.login(the_config.email_account, the_config.password)
 
-        if len(the_config.emailFolders) > 0:
-            folders = the_config.emailFolders
+        if len(the_config.email_folders) > 0:
+            folders = the_config.email_folders
         else:
             # log the list of folders
             logging.info(imap.list()[1])
@@ -636,7 +636,7 @@ def load_messages(dest_file, messages, reactions, the_config):
 
         # remove any folders specified in `not-email-folders` 
         # setting and any of it's subfolders
-        for x_folder in the_config.notEmailFolders:
+        for x_folder in the_config.not_email_folders:
             for y_folder in folders:
                 parts = y_folder.split('/')
                 if parts[0] == x_folder:
@@ -645,7 +645,7 @@ def load_messages(dest_file, messages, reactions, the_config):
         for folder in folders:
             # only fetch emails from folders not in the exclude list
             count += fetch_emails(imap, folder, messages)
-            if count >= the_config.maxMessages:
+            if count >= the_config.max_messages:
                 imap.close()
                 imap.logout()
                 return count
