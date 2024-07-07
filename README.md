@@ -103,3 +103,6 @@ where:
 - ma`x`imum of `20` messages should be converted
 - `b`egin the export from `2024-01-01`
 
+## After you've used it
+
+The script is **REALLY** slow because it goes through every email just to determine if it's sent/received since the `-b` begin date. It took 30 mins or more to run on my laptop. After I run the script, I now archive all the messages to a big folder that is not included in the scanning.
