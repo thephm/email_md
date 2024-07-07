@@ -145,15 +145,15 @@ def parse_header(the_email, the_message):
             date_str = parsed_date.strftime('%Y-%m-%d')
             time_str = parsed_date.strftime('%H:%M')
 
-            the_message.timeStamp = int(parsed_date.timestamp())
-            the_message.dateStr = date_str
-            the_message.timeStr = time_str
+            the_message.timestamp = int(parsed_date.timestamp())
+            the_message.date_str = date_str
+            the_message.time_str = time_str
         except:
             return False
 
-    # set the "toSlug" to the person that was passed in `-m slug`
+    # add the person that was passed in `-m slug` to "to_slugs"
     if the_config.me:
-        the_message.toSlugs.append(the_config.me.slug)
+        the_message.to_slugs.append(the_config.me.slug)
 
     # decode email sender
     the_from, encoding = decode_header(the_email.get("From"))[0]
@@ -493,7 +493,7 @@ def clean_body(the_email, the_message):
     text = re.sub(r'Join Zoom Meeting.*', 'Join Zoom Meeting', text, flags=re.DOTALL)
 
     # FINALLY, ready to put the new-and-improved body in the message 🤣
-    theMessage.body = text
+    the_message.body = text
 
     return result
 
@@ -511,7 +511,7 @@ def parse_email(this_email, the_message):
                     logging.info(f"ID: {id}")
 
                 if parse_header(this_email, the_message):
-                    if (the_message.fromSlug):
+                    if (the_message.from_slug):
                         parse_body(this_email, the_message)
                         clean_body(this_email, the_message)
             except:
@@ -584,12 +584,16 @@ def fetch_emails(imap, folder, messages):
         print(status, end="\r")
         
         # stop if this message was sent before the start date
-        if the_message.dateStr:
-            message_date = datetime.strptime(the_message.date_str, '%Y-%m-%d')
-            from_date = datetime.strptime(the_config.from_date, '%Y-%m-%d')
-            if message_date < from_date:
-                continue
- 
+        if the_message.date_str:
+            try:
+                print(the_message.date_str)
+                message_date = datetime.strptime(the_message.date_str, '%Y-%m-%d')
+                from_date = datetime.strptime(the_config.from_date, '%Y-%m-%d')
+                if message_date < from_date:
+                    continue
+            except ValueError:
+                print("Error: Date string does not match format '%Y-%m-%d'")
+
         if count == the_config.max_messages:
             return count
 
@@ -614,11 +618,11 @@ def load_messages(dest_file, messages, reactions, the_config):
     count = 0
     folders = []
 
-    if not (the_config.imapServer and the_config.email_account and the_config.password):
+    if not (the_config.imap_server and the_config.email_account and the_config.password):
         return 0
 
     # create an IMAP4 class with SSL 
-    imap = imaplib.IMAP4_SSL(the_config.imapServer)
+    imap = imaplib.IMAP4_SSL(the_config.imap_server)
 
     # authenticate, get the list of folders, fetch the emails
     try:
