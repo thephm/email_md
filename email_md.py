@@ -586,7 +586,6 @@ def fetch_emails(imap, folder, messages):
         # stop if this message was sent before the start date
         if the_message.date_str:
             try:
-                print(the_message.date_str)
                 message_date = datetime.strptime(the_message.date_str, '%Y-%m-%d')
                 from_date = datetime.strptime(the_config.from_date, '%Y-%m-%d')
                 if message_date < from_date:
