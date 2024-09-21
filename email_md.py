@@ -683,9 +683,7 @@ the_reactions = []
 
 the_config = config.Config()
 
-if message_md.setup(the_config, markdown.YAML_SERVICE_EMAIL, True):
-
-    the_config.reversed = False
+if message_md.setup(the_config, markdown.YAML_SERVICE_EMAIL):
 
     # needs to be after setup so the command line parameters override the
     # values defined in the settings file
