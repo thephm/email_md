@@ -5,6 +5,7 @@ import webbrowser
 import os
 import re
 from dateutil import parser
+from email.utils import getaddresses
 
 import markdownify
 from markdownify import markdownify as md
@@ -32,15 +33,40 @@ from bs4 import BeautifulSoup, MarkupResemblesLocatorWarning
 INBOX = "INBOX"
 SENT = "SENT"
 
+HEADER_TO = 'To'
+HEADER_CC = 'Cc'
+HEADER_DATE = 'Date'
+HEADER_MESSAGE_ID = 'Message-ID'
+HEADER_FROM = 'From'
+HEADER_REFERENCES = 'References'
+HEADER_IN_REPLY_TO = 'In-Reply-To'
+
+ATTACHMENT = 'attachment'
+CONTENT_DISPOSITION = 'Content-Disposition'
+CONTENT_TYPE_TEXT_PLAIN = 'text/plain'
+
+email_not_found = []
+
 # attribution to https://thepythoncode.com/article/reading-emails-in-python
 
 # use your email provider's IMAP server, you can look for your provider's IMAP server on Google
 # or check this page: https://www.systoolsgroup.com/imap/
 # use `i <imapServer>`
 
+# -----------------------------------------------------------------------------
+#
+# Parses a string of email addresses separated by `;` into a collection.
+#
+# Parameters:
+#
+#   text - the set of email addresses
+#
+# Returns:
+#
+#   An collection of email addresses
+#
+# -----------------------------------------------------------------------------
 def get_email_address(text):
-    
-    import re
 
     if not isinstance(text, str):
         return text
@@ -52,7 +78,7 @@ def get_email_address(text):
     email_addresses = re.findall(email_pattern, text)
 
     if email_addresses: 
-        result = email_addresses[0]
+        result = email_addresses[0].lower()  # convert to lowercase
     else:
         result = False
 
@@ -96,6 +122,42 @@ def remove_reply(text):
 
 # -----------------------------------------------------------------------------
 #
+# Parse the email addresses email into a Message object.
+#
+# Parameters:
+# 
+#   - the_email - the actual email
+#   - the_message - where the parsed email message goes
+#   - direction - FROM, TO, CC
+#
+# -----------------------------------------------------------------------------
+def parse_addresses(the_email, the_message, direction):
+    
+    to_from_cc_header = the_email.get(direction)
+
+    if to_from_cc_header:
+        # parse "To" addresses into a list of tuples (name, email)
+        parsed_addresses = getaddresses([to_from_cc_header])
+        
+        # extract just the email addresses from the parsed list
+        to_emails = [addr[1] for addr in parsed_addresses if addr[1]]
+
+        # add these emails to the_message (adjust as per your data structure)
+        the_message.to_emails = to_emails
+
+        for email_address in the_message.to_emails:
+            try: 
+                person = the_config.get_person_by_email(email_address.lower())
+                if person:
+                    if person.slug not in the_message.to_slugs and person.slug not in the_message.from_slug:
+                        the_message.to_slugs.append(person.slug)
+                elif email_address not in email_not_found:
+                    email_not_found.append(email_address)
+            except Exception as e:
+                print(e)
+
+# -----------------------------------------------------------------------------
+#
 # Parse the header of the email into a Message object.
 #
 # Parameters:
@@ -130,10 +192,10 @@ def parse_header(the_email, the_message):
     the_message.subject = subject
 
     # get the funky IMAP id of the message
-    the_message.id = the_email.get('Message-ID')
+    the_message.id = the_email.get(HEADER_MESSAGE_ID)
 
     # get the date from the header
-    date_header = the_email.get('Date')
+    date_header = the_email.get(HEADER_DATE)
 
     # remove extra info after tz offset
     if date_header:
@@ -150,13 +212,13 @@ def parse_header(the_email, the_message):
             the_message.time_str = time_str
         except:
             return False
-
-    # add the person that was passed in `-m slug` to "to_slugs"
-    if the_config.me:
-        the_message.to_slugs.append(the_config.me.slug)
+    
+    # get the to and cc email addresses
+    parse_addresses(the_email, the_message, HEADER_TO)
+    parse_addresses(the_email, the_message, HEADER_CC)
 
     # decode email sender
-    the_from, encoding = decode_header(the_email.get("From"))[0]
+    the_from, encoding = decode_header(the_email.get(HEADER_FROM))[0]
     if encoding and isinstance(the_from, bytes):
         try:
             the_from = the_from.decode(encoding)
@@ -195,8 +257,14 @@ def download_attachment(part, the_message):
     # download the attachment
     if filename:
         # find the place to put it
-        folder = os.path.join(the_config.source_folder, the_config.attachments_subfolder)
+        folder = os.path.join(the_config.output_folder, the_config.people_subfolder)
+        folder = os.path.join(folder, the_config.media_subfolder)
         file_path = os.path.join(folder, filename)
+        
+        # if the folder doesn't exist, create it
+        if not os.path.exists(folder):
+            # create the folder
+            os.makedirs(folder)
 
         try:
             # download attachment and save it
@@ -207,10 +275,11 @@ def download_attachment(part, the_message):
             try:
                 the_attachment.id = filename
                 the_attachment.filename = filename
-                the_attachment.type = attachment.get_mime_type(filename)
+                the_attachment.type = the_config.get_mime_type(filename)
                 the_attachment.custom_filename = filename
                 the_message.add_attachment(the_attachment)
-            except:
+            except Exception as e:
+                print(e)
                 pass
 
         except Exception as e:
@@ -245,18 +314,18 @@ def parse_multi_part(the_email, the_message):
             pass
 
         try:
-            content_disposition = str(part.get("Content-Disposition"))
+            content_disposition = str(part.get(CONTENT_DISPOSITION))
         except:
             pass
 
         try:
             the_body = part.get_payload(decode=True).decode()
-            if the_body and content_type == "text/plain" and "attachment" not in content_disposition:
+            if the_body and content_type == CONTENT_TYPE_TEXT_PLAIN and ATTACHMENT not in content_disposition:
                 the_message.body = md(the_body)
         except:
             pass
 
-        if "attachment" in content_disposition:
+        if ATTACHMENT in content_disposition:
             download_attachment(part, the_message)
 
 # -----------------------------------------------------------------------------
@@ -316,8 +385,8 @@ def wasForwarded(the_email, the_message):
 
     result = False
 
-    references = the_email.get('References')
-    in_reply_to = the_email.get('In-Reply-To')
+    references = the_email.get(HEADER_REFERENCES)
+    in_reply_to = the_email.get(HEADER_IN_REPLY_TO)
 
     # if References and In-Reply-To are empty, might be a forwarded message
     if not references and not in_reply_to:
@@ -338,6 +407,19 @@ def isEmailHeader(line):
     # check if the line resembles an email header
     return re.match(r'^\s*(From:|Sent:|To:|Cc:|Subject:)', line, re.IGNORECASE) is not None
 
+# -----------------------------------------------------------------------------
+#
+# Join lines within paragraphs, excluding email headers.
+#
+# Parameters:
+# 
+#   - body - the email body contents
+#
+# Returns: 
+#
+#   the resulting body
+#
+# -----------------------------------------------------------------------------
 def join_lines(body):
 
     # reassemble lines, preserving paragraph breaks
@@ -351,16 +433,18 @@ def join_lines(body):
             if current_paragraph:
                 paragraphs.append(current_paragraph.strip())
                 current_paragraph = ''
+            paragraphs.append(current_paragraph.strip())
+        elif line.strip():  # if the line is not empty, add it to the current paragraph
             current_paragraph += line.strip() + '\n'
         elif line.strip():  # if the line is not empty
             current_paragraph += line + ' '
-        else:  # if the line is empty, it indicates a new paragraph
+        else:  # if the line is empty, it indicates the end of the current paragraph
             if current_paragraph and not current_paragraph.isspace():
                 paragraphs.append(current_paragraph.strip())
             current_paragraph = ''
 
     # add the last paragraph if there's any
-    if current_paragraph and not current_paragraph.isspace():
+    if current_paragraph:
         paragraphs.append(current_paragraph.strip())
 
     # join lines within each paragraph, excluding email headers
@@ -469,7 +553,7 @@ def clean_body(the_email, the_message):
     text = re.sub(r'^\s*', '', text, flags=re.MULTILINE)
 
     # get rid of extra newlines
-    text = text.replace('\n\n\n', '\n\n')
+    text = re.sub(r'\n{3,}', '\n\n', text)
     
     text = text.replace('| | | --- | |', ' ') 
     text = text.replace('| | --- | |', ' ') 
@@ -478,31 +562,64 @@ def clean_body(the_email, the_message):
     text = re.sub(r'^From: ', '\nFrom: ', text, flags=re.MULTILINE)
 
     # add a blank line after lines starting with Subject:
-    text = re.sub(r'(Subject: .*)', r'\1\n', text)
+    text = re.sub(r'(Subject: .*)\n+', r'\1\n', text)
 
     # add a line before "---------- Forwarded message ---------"
     text = re.sub(r'\n?-*\s*-?Forwarded message?-*\s*-', '\n\n*- Forwarded message *-', text)
 
-    # add a line before "-----Original Message-----"
-    text = re.sub(r'\n?-*\s*?Original Message?-\s*-*\n?', '\n\n*-Original Message*-', text)
+    # ensure exactly one blank line before and after "Original Message"
+    text = re.sub(r'\s*-*\s*Original Message\s*-*\s*', '\n\n-- Original Message --\n\n', text)
 
     # remove lines between and including "-=-=-=-=-=-=-=-=-=-=-=-"
     text = re.sub(r'-=-=-=-=-=-=-=-=-=-=-=-.*?-=-=-=-=-=-=-=-=-=-=-=-\n?', '', text, flags=re.DOTALL)
 
     # remove everything after "Join Zoom Meeting"
     text = re.sub(r'Join Zoom Meeting.*', 'Join Zoom Meeting', text, flags=re.DOTALL)
+    
+    # replace lines containing "======================================================================" with 9 fewer "="
+    text = re.sub(r'^(=+)$', lambda m: '=' * (len(m.group(1)) - 9), text, flags=re.MULTILINE)
+
+    # combine lines that don't start with "> " or a prompt and don't end with a period into one line
+    text = re.sub(r'(?<!\.)\n(?!> |(?:\w+: ))', ' ', text)
+
+    # add blank lines between paragraphs
+    text = re.sub(r'(\n)(?=\S)', r'\1\n', text)
+
+    # ensure lines between quoted paragraphs also have a quote ">"
+    text = re.sub(r'(?<=^> .*)\n(?=> )', '>\n', text, flags=re.MULTILINE)
+
+    # remove text that starts and ends with any quantity of asterisks and contains "This e-mail"
+    text = re.sub(r'\*+.*?This e-mail.*?\*+', '', text, flags=re.DOTALL)
+
+    # remove "> > >", "> >", or "> " from the end of lines
+    text = re.sub(r'(> > >|> >|> )$', '', text, flags=re.MULTILINE)
+
+    # ensure lines with "--------------------------------" preceded and/or followed by a space or any number of dashes greater than 2 have a blank line before and after them
+    text = re.sub(r'\s*-{2,}\s*--------------------------------\s*-{2,}\s*', '\n\n--------------------------------\n\n', text)
+    
+    # replace "_____" (or more or fewer underscores) with "--"
+    text = re.sub(r'_+', '--', text)
 
     # FINALLY, ready to put the new-and-improved body in the message 🤣
     the_message.body = text
 
     return result
 
-# parse a specific email and append it to the list Messages collection
+# -----------------------------------------------------------------------------
+# 
+# Parse a specific email and clean it up.
+#
+# Parameters:
+# 
+#   - this_email - the email to be parsed
+#   - the_message - where the parsed email message goes
+#
+# -----------------------------------------------------------------------------
 def parse_email(this_email, the_message):
 
     for response in this_email:
-        if isinstance(response, tuple):
-            
+
+        if isinstance(response, tuple):    
             try:
                 # parse a bytes email into a message object
                 this_email = email.message_from_bytes(response[1])
@@ -582,18 +699,18 @@ def fetch_emails(imap, folder, messages):
         status += f"Found: {count}  Date: {the_message.date_str} "
         status += ' ' * (120 - len(status))
         print(status, end="\r")
-        
+
         # stop if this message was sent before the start date
-        if the_message.date_str:
-            try:
+        try:
+            if the_message.date_str:
                 message_date = datetime.strptime(the_message.date_str, '%Y-%m-%d')
                 from_date = datetime.strptime(the_config.from_date, '%Y-%m-%d')
                 if message_date < from_date:
                     continue
-            except ValueError:
-                print("Error: Date string does not match format '%Y-%m-%d'")
+        except ValueError:
+            print("Error: Date string does not match format '%Y-%m-%d'")
 
-        if count == the_config.max_messages:
+        if count >= the_config.max_messages:
             return count
 
     return count
@@ -621,8 +738,12 @@ def load_messages(dest_file, messages, reactions, the_config):
         return 0
 
     # create an IMAP4 class with SSL 
-    imap = imaplib.IMAP4_SSL(the_config.imap_server)
-
+    try:
+        imap = imaplib.IMAP4_SSL(the_config.imap_server)
+    except Exception as e:
+        print(e)
+        return 0
+    
     # authenticate, get the list of folders, fetch the emails
     try:
         imap.login(the_config.email_account, the_config.password)
@@ -689,4 +810,6 @@ if message_md.setup(the_config, markdown.YAML_SERVICE_EMAIL):
     # values defined in the settings file
     message_md.get_markdown(the_config, load_messages, the_messages, the_reactions)
 
-    print("\n")
+    print("These email addresses were not found:\n")
+    for email_address in email_not_found:
+        print(email_address)
