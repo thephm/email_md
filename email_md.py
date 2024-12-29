@@ -130,9 +130,16 @@ def remove_reply(text):
 #   - the_message - where the parsed email message goes
 #   - direction - FROM, TO, CC
 #
+# Returns:
+#
+#   - True if person was found and email was added to them
+#   - False if person being ignored or email address not found
+#
 # -----------------------------------------------------------------------------
 def parse_addresses(the_email, the_message, direction):
     
+    result = False
+
     to_from_cc_header = the_email.get(direction)
 
     if to_from_cc_header:
@@ -148,13 +155,16 @@ def parse_addresses(the_email, the_message, direction):
         for email_address in the_message.to_emails:
             try: 
                 person = the_config.get_person_by_email(email_address.lower())
-                if person:
+                if person and not person.ignore:
                     if person.slug not in the_message.to_slugs and person.slug not in the_message.from_slug:
                         the_message.to_slugs.append(person.slug)
-                elif email_address not in email_not_found:
+                        result = True
+                elif person and not person.ignore and email_address not in email_not_found:
                     email_not_found.append(email_address)
             except Exception as e:
                 print(e)
+
+    return result
 
 # -----------------------------------------------------------------------------
 #
@@ -214,7 +224,7 @@ def parse_header(the_email, the_message):
             return False
     
     # get the to and cc email addresses
-    parse_addresses(the_email, the_message, HEADER_TO)
+    result = parse_addresses(the_email, the_message, HEADER_TO)
     parse_addresses(the_email, the_message, HEADER_CC)
 
     # decode email sender
@@ -469,9 +479,7 @@ def join_lines(body):
 #
 # -----------------------------------------------------------------------------
 def clean_body(the_email, the_message):
-
     text = the_message.body
-
     result = False
 
     # get rid of quotes, a bit drastic but they're annoying
@@ -504,8 +512,6 @@ def clean_body(the_email, the_message):
     text = pattern3.sub('', text)
 
     # regular expression pattern to match variations of "Sent from my iPhone" etc.
-    # this should likely be an option since it could remove meaningful parts of messages.
-    # For me, I want less noise, more signal so the risk of excluding a sentence is low
     pattern4 = re.compile(r'Sent from .*|Get (Outlook for iOS|.*? for Android)|Sent via .*', re.IGNORECASE)
     text = pattern4.sub('', text)
 
@@ -527,79 +533,80 @@ def clean_body(the_email, the_message):
     text = re.sub(r'(On .*? wrote:)', r'\n\1\n', text, flags=re.DOTALL)
 
     # remove backslash and asterisk around "From," "Sent," and "To"
-    text = re.sub(r'\*\*(From|Cc|Sent|To|Subject)\:\*\*', r'\n\1:', text)
+    text = re.sub(r'\*\*(From|Cc|Sent|To|Subject)\:\*\*', r'\n\1:', text, flags=re.IGNORECASE)
 
+    # remove any HTML
     try:
-        # do a final removal of any HTML
         text = md(text.strip())
         result = True
-
-    # ignoring exceptions from Beautiful Soup like this one:
-    #
-    #   "MarkupResemblesLocatorWarning: The input looks more like a URL..."
-    #
     except Exception as e:
         pass
 
-    # reassemble lines to avoid word splitting
-    text = join_lines(text)
+    try:
+        # reassemble lines to avoid word splitting
+        text = join_lines(text)
 
-    # get rid of "p.MsoNormal,p.MsoNoSpacing{margin:0}"
-    text = text.replace('p.MsoNormal,p.MsoNoSpacing{margin:0}', ' ') 
-    pattern7 = re.compile(re.escape("p.") + '(.*?)' + re.escape("{margin: ?0;}"), re.DOTALL)
-    text = pattern7.sub('', text)
+        # get rid of "p.MsoNormal,p.MsoNoSpacing{margin:0}"
+        text = text.replace('p.MsoNormal,p.MsoNoSpacing{margin:0}', ' ') 
+        pattern7 = re.compile(re.escape("p.") + '(.*?)' + re.escape("{margin: ?0;}"), re.DOTALL)
+        text = pattern7.sub('', text)
 
-    # remove leading spaces, likely vestiges from other substitutions above
-    text = re.sub(r'^\s*', '', text, flags=re.MULTILINE)
+        # remove leading spaces, likely vestiges from other substitutions above
+        text = re.sub(r'^\s*', '', text, flags=re.MULTILINE)
 
-    # get rid of extra newlines
+        # get rid of extra newlines
+        text = re.sub(r'\n{3,}', '\n\n', text)
+        
+        text = text.replace('| | | --- | |', ' ') 
+        text = text.replace('| | --- | |', ' ') 
+
+        # add a blank line before lines starting with From:
+        text = re.sub(r'^From: ', '\nFrom: ', text, flags=re.MULTILINE)
+
+        # add a blank line after lines starting with Subject:
+        text = re.sub(r'(Subject: .*)\n+', r'\1\n', text)
+
+        # add a line before "---------- Forwarded message ---------"
+        text = re.sub(r'\n?-*\s*-?Forwarded message?-*\s*-', '\n\n*- Forwarded message *-', text, flags=re.IGNORECASE)
+
+        # ensure exactly one blank line before and after "Original Message"
+        text = re.sub(r'\s*-{0,3}\s*Original Message\s*-{0,3}\s*', '\n\n-- Original Message --\n\n', text)
+
+        # remove lines between and including "-=-=-=-=-=-=-=-=-=-=-=-"
+        text = re.sub(r'-=-=-=-=-=-=-=-=-=-=-=-.*?-=-=-=-=-=-=-=-=-=-=-=-\n?', '', text, flags=re.DOTALL)
+
+        # remove everything after "Join Zoom Meeting"
+        text = re.sub(r'Join Zoom Meeting.*', 'Join Zoom Meeting', text, flags=re.DOTALL)
+        
+        # replace lines containing "======================================================================" with 9 fewer "="
+        text = re.sub(r'^(=+)$', lambda m: '=' * (len(m.group(1)) - 9), text, flags=re.MULTILINE)
+
+        # combine lines that don't start with "> " or a prompt and don't end with a period
+        text = re.sub(r'([^\.\!\?])\n(?!>|[a-zA-Z]+:\s)', r'\1 ', text)
+
+        # add blank lines between paragraphs
+        text = re.sub(r'(\n)(?=\S)', r'\1\n', text)
+
+        # ensure lines between quoted paragraphs also have a quote ">"
+        text = re.sub(r'(^> .*)\n(?=> )', r'\1>\n', text, flags=re.MULTILINE)
+
+        # remove text that starts and ends with any quantity of asterisks and contains "This e-mail"
+        text = re.sub(r'\*+.*?This e-mail.*?\*+', '', text, flags=re.DOTALL)
+
+        # remove "> > >", "> >", or "> " from the end of lines
+        text = re.sub(r'(> > >|> >|> )$', '', text, flags=re.MULTILINE)
+
+        # ensure lines with "--------------------------------" preceded and/or followed by a space or any number of dashes greater than 2 have a blank line before and after them
+        text = re.sub(r'\s*-{2,}\s*--------------------------------\s*-{2,}\s*', '\n\n--------------------------------\n\n', text)
+        
+        # replace "_____" (or more or fewer underscores) with "--"
+        text = re.sub(r'_+', '--', text)
+    except Exception as e:
+        print(e)
+
+    # get rid of extra newlines again, they seem to get added back along the way
     text = re.sub(r'\n{3,}', '\n\n', text)
     
-    text = text.replace('| | | --- | |', ' ') 
-    text = text.replace('| | --- | |', ' ') 
-
-    # add a blank line before lines starting with From:
-    text = re.sub(r'^From: ', '\nFrom: ', text, flags=re.MULTILINE)
-
-    # add a blank line after lines starting with Subject:
-    text = re.sub(r'(Subject: .*)\n+', r'\1\n', text)
-
-    # add a line before "---------- Forwarded message ---------"
-    text = re.sub(r'\n?-*\s*-?Forwarded message?-*\s*-', '\n\n*- Forwarded message *-', text)
-
-    # ensure exactly one blank line before and after "Original Message"
-    text = re.sub(r'\s*-*\s*Original Message\s*-*\s*', '\n\n-- Original Message --\n\n', text)
-
-    # remove lines between and including "-=-=-=-=-=-=-=-=-=-=-=-"
-    text = re.sub(r'-=-=-=-=-=-=-=-=-=-=-=-.*?-=-=-=-=-=-=-=-=-=-=-=-\n?', '', text, flags=re.DOTALL)
-
-    # remove everything after "Join Zoom Meeting"
-    text = re.sub(r'Join Zoom Meeting.*', 'Join Zoom Meeting', text, flags=re.DOTALL)
-    
-    # replace lines containing "======================================================================" with 9 fewer "="
-    text = re.sub(r'^(=+)$', lambda m: '=' * (len(m.group(1)) - 9), text, flags=re.MULTILINE)
-
-    # combine lines that don't start with "> " or a prompt and don't end with a period into one line
-    text = re.sub(r'(?<!\.)\n(?!> |(?:\w+: ))', ' ', text)
-
-    # add blank lines between paragraphs
-    text = re.sub(r'(\n)(?=\S)', r'\1\n', text)
-
-    # ensure lines between quoted paragraphs also have a quote ">"
-    text = re.sub(r'(?<=^> .*)\n(?=> )', '>\n', text, flags=re.MULTILINE)
-
-    # remove text that starts and ends with any quantity of asterisks and contains "This e-mail"
-    text = re.sub(r'\*+.*?This e-mail.*?\*+', '', text, flags=re.DOTALL)
-
-    # remove "> > >", "> >", or "> " from the end of lines
-    text = re.sub(r'(> > >|> >|> )$', '', text, flags=re.MULTILINE)
-
-    # ensure lines with "--------------------------------" preceded and/or followed by a space or any number of dashes greater than 2 have a blank line before and after them
-    text = re.sub(r'\s*-{2,}\s*--------------------------------\s*-{2,}\s*', '\n\n--------------------------------\n\n', text)
-    
-    # replace "_____" (or more or fewer underscores) with "--"
-    text = re.sub(r'_+', '--', text)
-
     # FINALLY, ready to put the new-and-improved body in the message 🤣
     the_message.body = text
 
@@ -614,8 +621,15 @@ def clean_body(the_email, the_message):
 #   - this_email - the email to be parsed
 #   - the_message - where the parsed email message goes
 #
+# Returns:
+#
+#  - True if the email was parsed successfully
+#  - False if the person was ignored or there was an issue
+#
 # -----------------------------------------------------------------------------
 def parse_email(this_email, the_message):
+
+    result = False
 
     for response in this_email:
 
@@ -630,9 +644,12 @@ def parse_email(this_email, the_message):
                 if parse_header(this_email, the_message):
                     if (the_message.from_slug):
                         parse_body(this_email, the_message)
+                        result = True
                         clean_body(this_email, the_message)
             except:
                 pass
+        
+    return result
 
 # -----------------------------------------------------------------------------
 #
@@ -684,9 +701,9 @@ def fetch_emails(imap, folder, messages):
          # create a holder for the parsed email
         the_message = message.Message()
 
-        parse_email(this_email, the_message)
+        result = parse_email(this_email, the_message)
 
-        if the_message.from_slug:
+        if result and the_message.from_slug:
             count += 1
             messages.append(the_message)
 
@@ -810,6 +827,7 @@ if message_md.setup(the_config, markdown.YAML_SERVICE_EMAIL):
     # values defined in the settings file
     message_md.get_markdown(the_config, load_messages, the_messages, the_reactions)
 
-    print("These email addresses were not found:\n")
-    for email_address in email_not_found:
-        print(email_address)
+    if len(email_not_found):
+        print("These email addresses were not found:\n")
+        for email_address in email_not_found:
+            print(email_address)
