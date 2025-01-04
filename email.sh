@@ -18,7 +18,7 @@ PASSWORD="$2"
 IMAP=imap.fastmail.com
 
 # this is your slug
-SLUG=bob
+SLUG=bernie
 
 # location of the Python script
 PY_DIR=/mnt/c/data/github/email_md

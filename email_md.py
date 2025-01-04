@@ -155,14 +155,15 @@ def parse_addresses(the_email, the_message, direction):
         for email_address in the_message.to_emails:
             try: 
                 person = the_config.get_person_by_email(email_address.lower())
+                # if we found someone and not ignoring them e.g. a mailing list
                 if person and not person.ignore:
                     if person.slug not in the_message.to_slugs and person.slug not in the_message.from_slug:
                         the_message.to_slugs.append(person.slug)
                         result = True
-                elif person and not person.ignore and email_address not in email_not_found:
+                elif not person:
                     email_not_found.append(email_address)
             except Exception as e:
-                print(e)
+                logging.error(f"{the_config.get_str(the_config.STR_NO_PERSON_WITH_EMAIL)}: {email_address}. Error {e}")
 
     return result
 
@@ -289,11 +290,11 @@ def download_attachment(part, the_message):
                 the_attachment.custom_filename = filename
                 the_message.add_attachment(the_attachment)
             except Exception as e:
-                print(e)
+                logging.error("download_attachment: {e}")
                 pass
 
         except Exception as e:
-            logging.error(e)
+            logging.error("{the_config.get_str(STR_COULD_NOT_CREATE_MEDIA_FOLDER)}: {file_path}") 
             pass
 
 # -----------------------------------------------------------------------------
@@ -366,7 +367,7 @@ def parse_body(the_email, the_message):
             the_body = the_email.get_payload(decode=True).decode()
             if the_body:
                 the_message.body = md(the_body)
-        
+
         # sometimes got errors like this, so ignoring the email
         # 'utf-8' codec can't decode byte 0x80 in position 8: invalid start byte
         except Exception as e:
@@ -478,7 +479,10 @@ def join_lines(body):
 #   - False if ran into an 
 #
 # -----------------------------------------------------------------------------
+import re
+
 def clean_body(the_email, the_message):
+
     text = the_message.body
     result = False
 
@@ -499,41 +503,70 @@ def clean_body(the_email, the_message):
     text = text.replace("{margin: 0;}", "")
 
     # get rid of this
-    text.replace("P {margin-top:0;margin-bottom:0;}", "")
+    text = text.replace("P {margin-top:0;margin-bottom:0;}", "")
 
-    pattern1 = re.compile(re.escape("#") + '.*?' + re.escape("{margin:0;}"), re.DOTALL)
-    text = pattern1.sub('', text)
+    try:
+        pattern1 = re.compile(re.escape("#") + '.*?' + re.escape("{margin:0;}"), re.DOTALL)
+        text = pattern1.sub('', text)
+    except:
+        pass
+    
+    try:
+        pattern2 = re.compile(re.escape("#") + '.*?' + re.escape("NoSpacing"), re.DOTALL)
+        text = pattern2.sub('', text)
+    except:
+        pass
 
-    pattern2 = re.compile(re.escape("#") + '.*?' + re.escape("NoSpacing"), re.DOTALL)
-    text = pattern2.sub('', text)
+    try:
+        # get rid of [External]/[Externe]
+        pattern3 = re.compile(r'\[External\]/\[Externe\]', re.IGNORECASE)
+        text = pattern3.sub('', text)
+    except:
+        pass
+    
+    try:
+        # regular expression pattern to match variations of "Sent from my iPhone" etc.
+        pattern4 = re.compile(r'Sent from .*|Get (Outlook for iOS|.*? for Android)|Sent via .*', re.IGNORECASE)
+        text = pattern4.sub('', text)
+    except:
+        pass
+    
+    try:
+        text = remove_reply(text)
+    except:
+        pass
 
-    # get rid of [External]/[Externe]
-    pattern3 = re.compile(r'\[External\]/\[Externe\]', re.IGNORECASE)
-    text = pattern3.sub('', text)
+    try:
+        # add backticks around text with "#" so they aren't seen as tags in Obsidian e.g. `#bob`
+        text = re.sub(r'#([^\s\)\]\.]+)', r'`#\1`', text)
+    except:
+        pass
 
-    # regular expression pattern to match variations of "Sent from my iPhone" etc.
-    pattern4 = re.compile(r'Sent from .*|Get (Outlook for iOS|.*? for Android)|Sent via .*', re.IGNORECASE)
-    text = pattern4.sub('', text)
+    try:
+        # remove "\\_\\_\\_\\_\\_\\_\\_" of any length
+        pattern5 = re.compile(r'\\_+', re.MULTILINE)
+        text = pattern5.sub('', text)
+    except:
+        pass
 
-    text = remove_reply(text)
+    try:
+        # remove "\\\\" of any length
+        pattern6 = re.compile(r'^\\\\$', re.MULTILINE)
+        text = pattern6.sub('', text)
+    except:
+        pass
+    
+    try:
+        # add a blank line before "On Feb 22, 2018, at 8:18 PM, Bob Smith wrote:"
+        text = re.sub(r'(On .*? wrote:)', r'\n\1\n', text, flags=re.DOTALL)
+    except:
+        pass
 
-    # add backticks around text with "#" so they aren't seen as tags in 
-    # Obsidian e.g. `#bob` 
-    text = re.sub(r'#([^\s\)\]\.]+)', r'`#\1`', text)
-
-    # remove "\\_\\_\\_\\_\\_\\_\\_" of any length
-    pattern5 = re.compile(r'\\_+', re.MULTILINE)
-    text = pattern5.sub('', text)
-
-    # remove "\\\\" of any length
-    pattern6 = re.compile(r'^\\\\$', re.MULTILINE)
-    text = pattern6.sub('', text)
-
-    # add a blank line before "On Feb 22, 2018, at 8:18 PM, Bob Smith wrote:"
-    text = re.sub(r'(On .*? wrote:)', r'\n\1\n', text, flags=re.DOTALL)
-
-    # remove backslash and asterisk around "From," "Sent," and "To"
-    text = re.sub(r'\*\*(From|Cc|Sent|To|Subject)\:\*\*', r'\n\1:', text, flags=re.IGNORECASE)
+    try:
+        # remove backslash and asterisk around "From," "Sent," and "To"
+        text = re.sub(r'\*\*(From|Cc|Sent|To|Subject)\:\*\*', r'\n\1:', text, flags=re.IGNORECASE)
+    except:
+        pass
 
     # remove any HTML
     try:
@@ -545,68 +578,129 @@ def clean_body(the_email, the_message):
     try:
         # reassemble lines to avoid word splitting
         text = join_lines(text)
+    except:
+        pass
 
+    try:
         # get rid of "p.MsoNormal,p.MsoNoSpacing{margin:0}"
         text = text.replace('p.MsoNormal,p.MsoNoSpacing{margin:0}', ' ') 
         pattern7 = re.compile(re.escape("p.") + '(.*?)' + re.escape("{margin: ?0;}"), re.DOTALL)
         text = pattern7.sub('', text)
+    except:
+        pass
 
+    try:
         # remove leading spaces, likely vestiges from other substitutions above
         text = re.sub(r'^\s*', '', text, flags=re.MULTILINE)
+    except:
+        pass
 
+    try:
         # get rid of extra newlines
         text = re.sub(r'\n{3,}', '\n\n', text)
-        
+    except:
+        pass    
+    
+    try:
         text = text.replace('| | | --- | |', ' ') 
         text = text.replace('| | --- | |', ' ') 
+    except:
+        pass
 
+    try:
         # add a blank line before lines starting with From:
-        text = re.sub(r'^From: ', '\nFrom: ', text, flags=re.MULTILINE)
-
+        text = re.sub(r'^(From:)', r'\n\1', text, flags=re.MULTILINE)
+    except:
+        pass
+    
+    try:
         # add a blank line after lines starting with Subject:
         text = re.sub(r'(Subject: .*)\n+', r'\1\n', text)
+    except:
+        pass
 
+    try:
         # add a line before "---------- Forwarded message ---------"
         text = re.sub(r'\n?-*\s*-?Forwarded message?-*\s*-', '\n\n*- Forwarded message *-', text, flags=re.IGNORECASE)
+    except:
+        pass
 
+    try:
         # ensure exactly one blank line before and after "Original Message"
-        text = re.sub(r'\s*-{0,3}\s*Original Message\s*-{0,3}\s*', '\n\n-- Original Message --\n\n', text)
+        text = re.sub(r'\n*\s*-{0,3}\s*Original Message\s*-{0,3}\s*\n*', '\n\n-- Original Message --\n\n', text)
+    except:
+        pass
 
+    try:
         # remove lines between and including "-=-=-=-=-=-=-=-=-=-=-=-"
         text = re.sub(r'-=-=-=-=-=-=-=-=-=-=-=-.*?-=-=-=-=-=-=-=-=-=-=-=-\n?', '', text, flags=re.DOTALL)
+    except:
+        pass
 
+    try:
         # remove everything after "Join Zoom Meeting"
         text = re.sub(r'Join Zoom Meeting.*', 'Join Zoom Meeting', text, flags=re.DOTALL)
-        
+    except:
+        pass
+
+    try:
         # replace lines containing "======================================================================" with 9 fewer "="
         text = re.sub(r'^(=+)$', lambda m: '=' * (len(m.group(1)) - 9), text, flags=re.MULTILINE)
+    except:
+        pass
 
+    try:
         # combine lines that don't start with "> " or a prompt and don't end with a period
         text = re.sub(r'([^\.\!\?])\n(?!>|[a-zA-Z]+:\s)', r'\1 ', text)
+    except:
+        pass
 
+    try:
         # add blank lines between paragraphs
         text = re.sub(r'(\n)(?=\S)', r'\1\n', text)
+    except:
+        pass
 
+    try:
         # ensure lines between quoted paragraphs also have a quote ">"
-        text = re.sub(r'(^> .*)\n(?=> )', r'\1>\n', text, flags=re.MULTILINE)
+        text = re.sub(r'(?<=^> .*)\n(?=> )', '>\n', text, flags=re.MULTILINE)
+    except:
+        pass
 
+    try:
         # remove text that starts and ends with any quantity of asterisks and contains "This e-mail"
         text = re.sub(r'\*+.*?This e-mail.*?\*+', '', text, flags=re.DOTALL)
+    except:
+        pass
 
+    try:
         # remove "> > >", "> >", or "> " from the end of lines
         text = re.sub(r'(> > >|> >|> )$', '', text, flags=re.MULTILINE)
+    except:
+        pass
 
+    try:
         # ensure lines with "--------------------------------" preceded and/or followed by a space or any number of dashes greater than 2 have a blank line before and after them
         text = re.sub(r'\s*-{2,}\s*--------------------------------\s*-{2,}\s*', '\n\n--------------------------------\n\n', text)
-        
+    except:
+        pass
+
+    try:
         # replace "_____" (or more or fewer underscores) with "--"
         text = re.sub(r'_+', '--', text)
-    except Exception as e:
-        print(e)
+    except:
+        pass
 
-    # get rid of extra newlines again, they seem to get added back along the way
+    try:
+        # deal with "Date: Tuesday, December 17, 2024 10:20 AM Blah blah"
+        date_pattern = re.compile(r'(Date: [A-Za-z]+, [A-Za-z]+ \d{1,2}, \d{4} \d{1,2}:\d{2} [APM]{2})(?=\S)', re.IGNORECASE)
+        text = date_pattern.sub(r'\1\n', text)
+    except:
+        pass
+
+    # remove any extra blank lines that might be introduced
     text = re.sub(r'\n{3,}', '\n\n', text)
-    
+
     # FINALLY, ready to put the new-and-improved body in the message 🤣
     the_message.body = text
 
@@ -724,8 +818,8 @@ def fetch_emails(imap, folder, messages):
                 from_date = datetime.strptime(the_config.from_date, '%Y-%m-%d')
                 if message_date < from_date:
                     continue
-        except ValueError:
-            print("Error: Date string does not match format '%Y-%m-%d'")
+        except Exception as e:
+            logging.error(f"{the_config.get_str(the_config.STR_DATE_STRING_DOES_NOT_MATCH_FORMAT)}: {email_address}. Error {e}")
 
         if count >= the_config.max_messages:
             return count
@@ -758,7 +852,7 @@ def load_messages(dest_file, messages, reactions, the_config):
     try:
         imap = imaplib.IMAP4_SSL(the_config.imap_server)
     except Exception as e:
-        print(e)
+        logging.error("load_messages: {e}")
         return 0
     
     # authenticate, get the list of folders, fetch the emails
@@ -828,6 +922,7 @@ if message_md.setup(the_config, markdown.YAML_SERVICE_EMAIL):
     message_md.get_markdown(the_config, load_messages, the_messages, the_reactions)
 
     if len(email_not_found):
-        print("These email addresses were not found:\n")
+        print(the_config.get_str(the_config.STR_THESE_EMAIL_ADDRESSES_NOT_FOUND))
+
         for email_address in email_not_found:
             print(email_address)
