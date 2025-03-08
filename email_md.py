@@ -53,20 +53,17 @@ email_not_found = []
 # or check this page: https://www.systoolsgroup.com/imap/
 # use `i <imapServer>`
 
-# -----------------------------------------------------------------------------
-#
-# Parses a string of email addresses separated by `;` into a collection.
-#
-# Parameters:
-#
-#   text - the set of email addresses
-#
-# Returns:
-#
-#   An collection of email addresses
-#
-# -----------------------------------------------------------------------------
+# Parse email addresses from text string, returning first found address in lowercase
 def get_email_address(text):
+    """
+    Parses a string of email addresses separated by ';' into a collection.
+
+    Args:
+        text: The set of email addresses
+
+    Returns:
+        The first email address found (lowercase) or False if none found
+    """
 
     if not isinstance(text, str):
         return text
@@ -84,22 +81,22 @@ def get_email_address(text):
 
     return result
 
-# -----------------------------------------------------------------------------
-#
-# Shortens the body of the email by removing quoted replies (they will be in 
-# separate dated files already) and other useless text.
-#
-# Example:
-#
-# On Mon, Oct 9, 2023 at 1:06 PM Bob Smith <bob@smith> wrote:
-#
-# Returns:
-# 
-# String with the quoted reply text "From: ..."",
-# "<!-- ... !-->, and "On ... YYYY ... wrote:" removed 
-#
-# -----------------------------------------------------------------------------
+# Remove quoted replies and other unnecessary text from email body
 def remove_reply(text):
+    """
+    Shortens the body of the email by removing quoted replies (they will be in
+    separate dated files already) and other useless text.
+
+    Example:
+        Input: On Mon, Oct 9, 2023 at 1:06 PM Bob Smith <bob@smith> wrote:
+        Output: String with quoted reply text removed
+
+    Args:
+        text: The email body text to clean
+
+    Returns:
+        Cleaned text with quotes and unnecessary content removed
+    """
 
     result = text
 
@@ -120,23 +117,20 @@ def remove_reply(text):
 
     return result
 
-# -----------------------------------------------------------------------------
-#
-# Parse the email addresses email into a Message object.
-#
-# Parameters:
-# 
-#   - the_email - the actual email
-#   - the_message - where the parsed email message goes
-#   - direction - FROM, TO, CC
-#
-# Returns:
-#
-#   - True if person was found and email was added to them
-#   - False if person being ignored or email address not found
-#
-# -----------------------------------------------------------------------------
+# Parse email addresses from header and add them to Message object
 def parse_addresses(the_email, the_message, direction):
+    """
+    Parse the email addresses from email into a Message object.
+
+    Args:
+        the_email: The actual email
+        the_message: Where the parsed email message goes
+        direction: FROM, TO, or CC
+
+    Returns:
+        bool: True if person was found and email was added to them,
+              False if person being ignored or email address not found
+    """
     
     result = False
 
@@ -167,22 +161,18 @@ def parse_addresses(the_email, the_message, direction):
 
     return result
 
-# -----------------------------------------------------------------------------
-#
-# Parse the header of the email into a Message object.
-#
-# Parameters:
-# 
-#   - the_email - the actual email
-#   - the_message - where the parsed email message goes
-#
-# Returns: 
-#
-#   - True if parsed successfully
-#   - False if ran into an issue
-#
-# -----------------------------------------------------------------------------
+# Extract and parse email header fields into Message object
 def parse_header(the_email, the_message):
+    """
+    Parse the header of the email into a Message object.
+
+    Args:
+        the_email: The actual email
+        the_message: Where the parsed email message goes
+
+    Returns:
+        bool: True if parsed successfully, False if ran into an issue
+    """
 
     result = True   # assume success
     subject = ""
@@ -248,21 +238,19 @@ def parse_header(the_email, the_message):
 
     return result
 
-# -----------------------------------------------------------------------------
-#
-# Download the attachment from the multi-part email and add a corresponding
-# Attachment object to the Messsage object. 
-#
-# Parameters:
-# 
-#   - part - the part of the email that has the attachment
-#   - theMessage - where the Attachment is added
-#
-# Returns: nothing
-#
-# -----------------------------------------------------------------------------
+# Save email attachment to disk and add it to Message object
 def download_attachment(part, the_message):
+    """
+    Download the attachment from the multi-part email and add a corresponding
+    Attachment object to the Message object.
 
+    Args:
+        part: The part of the email that has the attachment
+        the_message: Where the Attachment is added
+
+    Returns:
+        None
+    """
     filename = part.get_filename()
 
     # download the attachment
@@ -297,19 +285,18 @@ def download_attachment(part, the_message):
             logging.error("{the_config.get_str(STR_COULD_NOT_CREATE_MEDIA_FOLDER)}: {file_path}") 
             pass
 
-# -----------------------------------------------------------------------------
-#
-# If the email is a multi-part email, parse each part.
-#
-# Parameters:
-# 
-#   - the_email - the actual email
-#   - the_message - where the parsed email message goes
-#
-# Returns: nothing
-#
-# -----------------------------------------------------------------------------
+# Process all parts of a multi-part email message 
 def parse_multi_part(the_email, the_message):
+    """
+    If the email is a multi-part email, parse each part.
+
+    Args:
+        the_email: The actual email
+        the_message: Where the parsed email message goes
+
+    Returns:
+        None
+    """
 
     the_body = ""
     content_disposition = ""
@@ -339,19 +326,18 @@ def parse_multi_part(the_email, the_message):
         if ATTACHMENT in content_disposition:
             download_attachment(part, the_message)
 
-# -----------------------------------------------------------------------------
-#
-# Parse the body of the email. Used when it's not a multi-part email.
-#
-# Parameters:
-# 
-#   - the_email - the actual email
-#   - the_message - where the parsed email message goes
-#
-# Returns: nothing
-#
-# -----------------------------------------------------------------------------
+# Extract and process email body content
 def parse_body(the_email, the_message):
+    """
+    Parse the body of the email. Used when it's not a multi-part email.
+
+    Args:
+        the_email: The actual email
+        the_message: Where the parsed email message goes
+
+    Returns:
+        None
+    """
 
     the_body = ""
 
@@ -373,65 +359,21 @@ def parse_body(the_email, the_message):
         except Exception as e:
             pass
 
-# -----------------------------------------------------------------------------
-#
-# Infers whether an email was forwarded from the header fields and subject. 
-#
-# Parameters:
-# 
-#   - the_email - the actual email
-#   - the_message - where the parsed email message goes
-#
-# Notes:
-#
-#   - this is not foolproof but don't need it to be
-#
-# Returns: 
-#
-#   - True if inferred it was forwarded
-#   - False if it wasn't
-#
-# -----------------------------------------------------------------------------
-def wasForwarded(the_email, the_message):
-
-    result = False
-
-    references = the_email.get(HEADER_REFERENCES)
-    in_reply_to = the_email.get(HEADER_IN_REPLY_TO)
-
-    # if References and In-Reply-To are empty, might be a forwarded message
-    if not references and not in_reply_to:
-        result = True
-    
-    # if the subject line starts with "Fwd:" or "fwd" or "Fw:" or "fw", then
-    # it was likely a forwarded email
-    subject = the_message.subject
-    pattern = re.compile(r'^fw.*:', re.IGNORECASE)
-
-    # avoid "TypeError: cannot use a string pattern on a bytes-like object"
-    if isinstance(subject, str) and not bool(pattern.match(subject)):
-        result = True
-    
-    return result
-
-def isEmailHeader(line):
+def is_email_header(line):
     # check if the line resembles an email header
     return re.match(r'^\s*(From:|Sent:|To:|Cc:|Subject:)', line, re.IGNORECASE) is not None
 
-# -----------------------------------------------------------------------------
-#
-# Join lines within paragraphs, excluding email headers.
-#
-# Parameters:
-# 
-#   - body - the email body contents
-#
-# Returns: 
-#
-#   the resulting body
-#
-# -----------------------------------------------------------------------------
+# Join lines within paragraphs while preserving email headers
 def join_lines(body):
+    """
+    Join lines within paragraphs, excluding email headers.
+    
+    Args:
+        body (str): The email body contents
+        
+    Returns:
+        str: The resulting body with properly joined lines
+    """
 
     # reassemble lines, preserving paragraph breaks
     lines = body.splitlines()
@@ -439,7 +381,7 @@ def join_lines(body):
     current_paragraph = ''
 
     for line in lines:
-        if isEmailHeader(line):
+        if is_email_header(line):
             # if the line resembles an email header, start a new paragraph
             if current_paragraph:
                 paragraphs.append(current_paragraph.strip())
@@ -463,25 +405,114 @@ def join_lines(body):
 
     return body
 
-# -----------------------------------------------------------------------------
-#
-# Remove extra stuff from the body of the email like "Sent from my iPhone" and 
-# any reply-to text from the email being replied to. 
-#
-# Parameters:
-# 
-#   - the_email - the actual email
-#   - the_message - where the parsed email message goes
-#
-# Returns: 
-#
-#   - True if successful
-#   - False if ran into an 
-#
-# -----------------------------------------------------------------------------
-import re
+def clean_yahoo_text(text):
+    """
+    Remove lines containing Yahoo promotional content
+    
+    Args:
+        text (str): Input text to clean
+    
+    Returns:
+        str: Cleaned text
+    """
+    # Regex to remove lines
+    lines = [line for line in text.split('\n') 
+             if not (
+                 # Remove lines with Yahoo promotional content
+                 (re.search(r'yahoo\!?', line, re.IGNORECASE) and 
+                  (re.search(r'yahoo\.com', line, re.IGNORECASE) or 
+                   re.search(r'platinum|mail\s*plus|sign\s*up|greetings|e-?cards|messages|photos|finance|personals|home\s*page|security|mobile|farechase|travel|autos|beta|discover|sports|small\s*business|spam|search|my\s*yahoo|resources|holiday|video|email|dsl|music', line, re.IGNORECASE))) or
+                 # Remove "Do you Yahoo!?" lines
+                 re.search(r'do\s*you\s*yahoo\!?\?', line, re.IGNORECASE) or
+                 # Remove standalone angle brackets and empty lines
+                 re.match(r'^>\s*$', line) or
+                 # Remove job and resume related lines
+                 re.search(r'(find|post)\s*(a)?\s*(job|resume)', line, re.IGNORECASE) or
+                 # Remove lines about accessing Yahoo services
+                 re.search(r'(listen|access|check)\s*.*\s*(yahoo\!? (mail|messages))', line, re.IGNORECASE) or
+                 # Remove lines about Yahoo service features
+                 re.search(r'(new|more)\s*yahoo\!?\s*(photos|mail)\s*-\s*(easier|better|simpler)', line, re.IGNORECASE) or
+                 # Remove lines about Yahoo services with specific actions
+                 re.search(r'yahoo\!?\s*(finance|mail):\s*(get|file|check|track)', line, re.IGNORECASE) or
+                 # Remove lines highlighting Yahoo service improvements
+                 re.search(r'(new\s*and\s*improved|improved)\s*yahoo\!?\s*mail\s*-\s*.*\s*(messages|email)', line, re.IGNORECASE) or
+                 # Remove registration or declaration lines
+                 re.search(r'(declare\s*yourself|register)\s*.*\s*(online|today)', line, re.IGNORECASE) or
+                 # Remove ad posting and personal ad lines
+                 re.search(r'(post|place)\s*(your)?\s*(free)?\s*(ad|personal)', line, re.IGNORECASE) or
+                 # Remove lines with Yahoo URLs for personals or ads
+                 re.search(r'http://.*yahoo\.(com|ca)/*(personals|ads)', line, re.IGNORECASE) or
+                 # Remove lines about setting Yahoo as home page
+                 re.search(r'(start|begin)\s*your\s*day\s*with\s*yahoo\!?', line, re.IGNORECASE) or
+                 # Remove lines encouraging making Yahoo home page
+                 re.search(r'make\s*it\s*your\s*(default\s*)?home\s*page', line, re.IGNORECASE) or
+                 # Remove lines about Yahoo Mail security
+                 re.search(r'yahoo\!?\s*mail\s*-\s*(you)\s*care\s*about\s*(security)', line, re.IGNORECASE) or
+                 # Remove lines about mobile Yahoo Mail
+                 re.search(r'(take|get)\s*yahoo\!?\s*mail\s*.*\s*(mobile\s*phone|phone)', line, re.IGNORECASE) or
+                 # Remove lines about Yahoo FareChase or travel services
+                 re.search(r'yahoo\!?\s*farechase:\s*(search|find)\s*.*\s*(travel\s*sites|sites)', line, re.IGNORECASE) or
+                 # Remove lines about Yahoo Autos
+                 re.search(r'(find|search)\s*your\s*next\s*(car|vehicle)\s*at\s*yahoo\!?\s*canada?\s*autos', line, re.IGNORECASE) or
+                 # Remove lines about Yahoo Mail beta
+                 re.search(r'(everyone\s*is\s*raving|raving)\s*about\s*.*\s*yahoo\!?\s*mail\s*beta', line, re.IGNORECASE) or
+                 # Remove "Discover Yahoo!" and similar promotional lines
+                 re.search(r'(discover\s*yahoo\!?|get\s*on-the-go)\s*.*\s*(scores|quotes|news)', line, re.IGNORECASE) or
+                 # Remove "Check it out!" type lines
+                 re.search(r'check\s*it\s*out\!?', line, re.IGNORECASE) or
+                 # Remove Yahoo Sports fantasy lines
+                 re.search(r'(rekindle\s*the\s*rivalries|sign\s*up\s*for)\s*.*\s*(fantasy\s*football)', line, re.IGNORECASE) or
+                 # Remove Yahoo Small Business promotional lines
+                 re.search(r'have\s*a\s*(huge|big)\s*year\s*through\s*yahoo\!?\s*small\s*business', line, re.IGNORECASE) or
+                 # Remove Yahoo Mail spam protection lines
+                 re.search(r'(tired\s*of\s*spam|spam\s*protection)\s*.*\s*yahoo\!?\s*mail', line, re.IGNORECASE) or
+                 # Remove Yahoo Search movie showtime lines
+                 re.search(r'(find\s*a\s*flick|movie\s*showtime)\s*.*\s*yahoo\!?\s*search', line, re.IGNORECASE) or
+                 # Remove My Yahoo promotional lines
+                 re.search(r'(meet\s*the|try\s*it)\s*.*\s*my\s*yahoo\!?', line, re.IGNORECASE) or
+                 # Remove Yahoo Small Business resources lines
+                 re.search(r'yahoo\!?\s*small\s*business\s*-\s*(try|check\s*out)\s*.*\s*(resources?\s*site)', line, re.IGNORECASE) or
+                 # Remove holiday greetings lines
+                 re.search(r'send\s*your\s*.*\s*(free)\s*.*\s*(holiday\s*greetings|greetings)', line, re.IGNORECASE) or
+                 # Remove Yahoo Mail video email lines
+                 re.search(r'send\s*.*\s*(free)\s*.*\s*(video\s*emails?)\s*in\s*yahoo\!?\s*mail', line, re.IGNORECASE) or
+                 # Remove Yahoo Mail promotional lines with "Try FREE"
+                 re.search(r'(try\s*free)\s*yahoo\!?\s*mail\s*-\s*.*\s*(greatest\s*free\s*email)', line, re.IGNORECASE) or
+                 # Remove Yahoo Greetings e-cards lines
+                 re.search(r'yahoo\!?\s*greetings\s*-\s*send\s*.*\s*(free\s*e-?cards|e-?cards)', line, re.IGNORECASE) or
+                 # Remove SBC Yahoo! DSL promotional lines
+                 re.search(r'sbc\s*yahoo\!?\s*dsl\s*-\s*now\s*.*\s*\$\d+\.\d+\s*per\s*month', line, re.IGNORECASE) or
+                 # Remove Yahoo Mail improved/new feature lines with message size
+                 re.search(r'(new\s*and\s*improved)\s*yahoo\!?\s*mail\s*-\s*send\s*\d+\s*mb\s*messages', line, re.IGNORECASE) or
+                 # Remove Yahoo Photos new feature lines
+                 re.search(r'new\s*yahoo\!?\s*photos\s*-\s*.*\s*(easier|simpler)\s*(uploading|sharing)', line, re.IGNORECASE) or
+                 # Remove Yahoo Music launch lines
+                 re.search(r'(launch|start)\s*-\s*your\s*yahoo\!?\s*music\s*experience', line, re.IGNORECASE) or
+                 # Remove Yahoo Shopping promotional lines
+                 re.search(r'>\s*(>\s*)*\s*yahoo\!?[\s\w]*\s*shopping\s*[-:]\s*.*', line, re.IGNORECASE)
+             )]
+    
+    return '\n'.join(lines).strip()
 
 def clean_body(the_email, the_message):
+    """
+    Remove extra stuff from the body of the email like "Sent from my iPhone" and 
+    any reply-to text from the email being replied to.
+
+    Performs extensive text cleaning including:
+    - Removing HTML and styling artifacts
+    - Cleaning up quoted text
+    - Normalizing line breaks and spacing
+    - Removing common email client signatures
+    - Formatting headers and message boundaries
+
+    Args:
+        the_email: The actual email
+        the_message: Where the parsed email message goes
+
+    Returns:
+        bool: True if successful, False if ran into errors
+    """
 
     text = the_message.body
     result = False
@@ -686,8 +717,8 @@ def clean_body(the_email, the_message):
         pass
 
     try:
-        # replace "_____" (or more or fewer underscores) with "--"
-        text = re.sub(r'_+', '--', text)
+        # remove "_____" (or more or fewer underscores)
+        text = re.sub(r'_+', '', text)
     except:
         pass
 
@@ -701,27 +732,61 @@ def clean_body(the_email, the_message):
     # remove any extra blank lines that might be introduced
     text = re.sub(r'\n{3,}', '\n\n', text)
 
+    # split "> --- Bob Smith wrote:"
+    text = re.sub(
+        r"(.*?)(?:\\s*>*)\\s*-{2,}\\s*(.*?\\s*wrote:)",
+        r"\\1\\n\\2",
+        text,
+        flags=re.IGNORECASE | re.MULTILINE | re.DOTALL
+    )
+
+    text = re.sub(r'>> Chat with friends online, try MSN Messenger: http://messenger\.msn\.com', '', text)
+    
+    # remove AVG text
+    text = re.sub(r'Checked by AVG.*?message\.', '', text)
+    text = re.sub(r'> >---\s*> >Incoming mail is certified Virus Free\..*?Release Date: \d{2}/\d{2}/\d{4}', '', text, flags=re.DOTALL)
+
+    # remove "> Off to school, going on a trip, or moving? Windows Live (MSN) Messenger..."
+    text = re.sub(r'Off to school.*?/[^/]+$', '', text)
+
+    # replace
+    #   > -- Original Message -- 
+    #   > 
+    #   > -- 
+    # 
+    # with
+    #   -- Original Message --
+    text = re.sub(r'-- Original Message --\s*> --\s*', '-- Original Message --', text)
+
+    # remove "-- " from "-- hi " in lines
+    text = re.sub(r">\s*-+\s*hi(?=\s|$)", "> hi", text)
+    
+    # get rid of extra quoted lines with more flexibility
+    text = re.sub(r'\n\n+(?=>)', '\n', text)
+
+    text = clean_yahoo_text(text)
+
     # FINALLY, ready to put the new-and-improved body in the message 🤣
     the_message.body = text
 
     return result
 
-# -----------------------------------------------------------------------------
-# 
-# Parse a specific email and clean it up.
-#
-# Parameters:
-# 
-#   - this_email - the email to be parsed
-#   - the_message - where the parsed email message goes
-#
-# Returns:
-#
-#  - True if the email was parsed successfully
-#  - False if the person was ignored or there was an issue
-#
-# -----------------------------------------------------------------------------
+# Parse single email and extract header/body into Message object
 def parse_email(this_email, the_message):
+    """
+    Parse a specific email and clean up its contents.
+
+    Processes both the header and body, stores results in the provided Message object.
+    Only parses emails from known senders (those with a from_slug).
+
+    Args:
+        this_email: The email to be parsed
+        the_message: Where the parsed email message goes
+
+    Returns:
+        bool: True if email was parsed successfully, 
+              False if person was ignored or there was an issue
+    """
 
     result = False
 
@@ -745,27 +810,27 @@ def parse_email(this_email, the_message):
         
     return result
 
-# -----------------------------------------------------------------------------
-#
-# Load the emails from a specific IMAP server folder
-#
-# Parameters:
-# 
-#   - imap - the imap connection
-#   - folder - the folder name e.g. "INBOX"
-#   - messsages - where the parsed Message objects are appended 
-#
-# Returns: the number of emails successfully parsed
-#
-# Notes:
-#
-# - was going to search by specific email addresses I know about but decided
-#   against that approach
-#
-#   status, results = imap.search(None, '(HEADER FROM "spongebob@gmail.com")')
-#
-# -----------------------------------------------------------------------------
+# Retrieve and parse all emails from specified IMAP folder
 def fetch_emails(imap, folder, messages):
+    """
+    Load the emails from a specific IMAP server folder.
+
+    Retrieves emails one by one from the specified folder, parses them,
+    and appends successfully parsed messages to the messages list.
+    Stops when either all emails are processed, max_messages is reached,
+    or a message predating from_date is encountered.
+
+    Note: Originally considered filtering by specific email addresses
+    (e.g. 'HEADER FROM "spongebob@gmail.com"') but decided against it.
+
+    Args:
+        imap: The IMAP connection
+        folder: The folder name e.g. "INBOX"
+        messages: Where the parsed Message objects are appended
+
+    Returns:
+        int: The number of emails successfully parsed
+    """
 
     count = 0
 
@@ -814,33 +879,36 @@ def fetch_emails(imap, folder, messages):
         # stop if this message was sent before the start date
         try:
             if the_message.date_str:
-                message_date = datetime.strptime(the_message.date_str, '%Y-%m-%d')
-                from_date = datetime.strptime(the_config.from_date, '%Y-%m-%d')
+                message_date = parser.parse(the_message.date_str)
+                from_date = parser.parse(the_config.from_date)
                 if message_date < from_date:
                     continue
         except Exception as e:
-            logging.error(f"{the_config.get_str(the_config.STR_DATE_STRING_DOES_NOT_MATCH_FORMAT)}: {email_address}. Error {e}")
+            logging.error(f"{the_config.get_str(the_config.STR_DATE_STRING_DOES_NOT_MATCH_FORMAT)}: {the_message.date_str}. Error {e}")
 
         if count >= the_config.max_messages:
             return count
 
     return count
 
-# -----------------------------------------------------------------------------
-#
-# Load the emails from the IMAP server.
-#
-# Parameters:
-# 
-#   - dest_file - not used but needed for the interface
-#   - messages - where the Message objects will go
-#   - reactions - not used but needed for the interface
-#   - the_config - specific settings 
-#
-# Returns: the number of messages loaded
-#
-# -----------------------------------------------------------------------------
+# Connect to IMAP server and load emails from all accessible folders
 def load_messages(dest_file, messages, reactions, the_config):
+    """
+    Load the emails from the IMAP server.
+
+    Connects to the IMAP server, authenticates, and retrieves emails from all
+    accessible folders (except those in not-email-folders). Some parameters
+    are unused but required by the interface.
+
+    Args:
+        dest_file: Not used but needed for the interface
+        messages: Where the Message objects will go
+        reactions: Not used but needed for the interface
+        the_config: Specific settings
+
+    Returns:
+        int: The number of messages loaded
+    """
 
     count = 0
     folders = []
