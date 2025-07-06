@@ -17,12 +17,13 @@ from datetime import datetime, timezone
 import tzlocal 
 
 import sys
+sys.path.insert(1, '../../github/hal/') 
+import person
 sys.path.insert(1, '../../github/message_md/') 
 import message_md
 import config
 import markdown
 import message
-import person
 import attachment
 
 import logging
@@ -255,15 +256,7 @@ def download_attachment(part, the_message):
 
     # download the attachment
     if filename:
-        # find the place to put it
-        folder = os.path.join(the_config.output_folder, the_config.people_subfolder)
-        folder = os.path.join(folder, the_config.media_subfolder)
-        file_path = os.path.join(folder, filename)
-        
-        # if the folder doesn't exist, create it
-        if not os.path.exists(folder):
-            # create the folder
-            os.makedirs(folder)
+        file_path = the_config.create_media_folder(filename, the_message.from_slug)
 
         try:
             # download attachment and save it
