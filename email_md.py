@@ -59,11 +59,11 @@ def get_email_address(text):
     """
     Parses a string of email addresses separated by ';' into a collection.
 
-    Args:
-        text: The set of email addresses
+    Parameters:
+    text (str): The set of email addresses
 
     Returns:
-        The first email address found (lowercase) or False if none found
+    The first email address found (lowercase) or False if none found
     """
 
     if not isinstance(text, str):
@@ -89,14 +89,14 @@ def remove_reply(text):
     separate dated files already) and other useless text.
 
     Example:
-        Input: On Mon, Oct 9, 2023 at 1:06 PM Bob Smith <bob@smith> wrote:
-        Output: String with quoted reply text removed
+    Input: On Mon, Oct 9, 2023 at 1:06 PM Bob Smith <bob@smith> wrote:
+    Output: String with quoted reply text removed
 
-    Args:
-        text: The email body text to clean
+    Parameters:
+    text (str): The email body text to clean
 
     Returns:
-        Cleaned text with quotes and unnecessary content removed
+    Cleaned text with quotes and unnecessary content removed
     """
 
     result = text
@@ -123,14 +123,14 @@ def parse_addresses(the_email, the_message, direction):
     """
     Parse the email addresses from email into a Message object.
 
-    Args:
-        the_email: The actual email
-        the_message: Where the parsed email message goes
-        direction: FROM, TO, or CC
+    Parameters:
+    the_email (EmailMessage): The actual email
+    the_message (Message): Where the parsed email message goes
+    direction (str): FROM, TO, or CC
 
     Returns:
-        bool: True if person was found and email was added to them,
-              False if person being ignored or email address not found
+    bool: True if person was found and email was added to them,
+        False if person being ignored or email address not found
     """
     
     result = False
@@ -167,12 +167,12 @@ def parse_header(the_email, the_message):
     """
     Parse the header of the email into a Message object.
 
-    Args:
-        the_email: The actual email
-        the_message: Where the parsed email message goes
+    Parameters:
+    the_email (EmailMessage): The actual email
+    the_message (Message): Where the parsed email message goes
 
     Returns:
-        bool: True if parsed successfully, False if ran into an issue
+    bool: True if parsed successfully, False if ran into an issue
     """
 
     result = True   # assume success
@@ -245,12 +245,12 @@ def download_attachment(part, the_message):
     Download the attachment from the multi-part email and add a corresponding
     Attachment object to the Message object.
 
-    Args:
-        part: The part of the email that has the attachment
-        the_message: Where the Attachment is added
+    Parameters:
+    part (Part): The part of the email that has the attachment
+    the_message (Message): Where the Attachment is added
 
     Returns:
-        None
+    None
     """
     filename = part.get_filename()
 
@@ -283,12 +283,12 @@ def parse_multi_part(the_email, the_message):
     """
     If the email is a multi-part email, parse each part.
 
-    Args:
-        the_email: The actual email
-        the_message: Where the parsed email message goes
+    Parameters:
+    the_email (EmailMessage): The actual email
+    the_message (Message): Where the parsed email message goes
 
     Returns:
-        None
+    None
     """
 
     the_body = ""
@@ -324,12 +324,12 @@ def parse_body(the_email, the_message):
     """
     Parse the body of the email. Used when it's not a multi-part email.
 
-    Args:
-        the_email: The actual email
-        the_message: Where the parsed email message goes
+    Parameters:
+    the_email (EmailMessage): The actual email
+    the_message (Message): Where the parsed email message goes
 
     Returns:
-        None
+    None
     """
 
     the_body = ""
@@ -360,12 +360,12 @@ def is_email_header(line):
 def join_lines(body):
     """
     Join lines within paragraphs, excluding email headers.
-    
-    Args:
-        body (str): The email body contents
+
+    Parameters:
+    body (str): The email body contents
         
     Returns:
-        str: The resulting body with properly joined lines
+    str: The resulting body with properly joined lines
     """
 
     # reassemble lines, preserving paragraph breaks
@@ -402,11 +402,11 @@ def clean_yahoo_text(text):
     """
     Remove lines containing Yahoo promotional content
     
-    Args:
-        text (str): Input text to clean
+    Parameters:
+    text (str): Input text to clean
     
     Returns:
-        str: Cleaned text
+    str: Cleaned text
     """
     # Regex to remove lines
     lines = [line for line in text.split('\n') 
@@ -499,12 +499,12 @@ def clean_body(the_email, the_message):
     - Removing common email client signatures
     - Formatting headers and message boundaries
 
-    Args:
-        the_email: The actual email
-        the_message: Where the parsed email message goes
+    Parameters:
+    the_email (EmailMessage): The actual email
+    the_message (Message): Where the parsed email message goes
 
     Returns:
-        bool: True if successful, False if ran into errors
+    bool: True if successful, False if ran into errors
     """
 
     text = the_message.body
@@ -772,13 +772,13 @@ def parse_email(this_email, the_message):
     Processes both the header and body, stores results in the provided Message object.
     Only parses emails from known senders (those with a from_slug).
 
-    Args:
-        this_email: The email to be parsed
-        the_message: Where the parsed email message goes
+    Parameters:
+    this_email (EmailMessage): The email to be parsed
+    the_message (Message): Where the parsed email message goes
 
     Returns:
-        bool: True if email was parsed successfully, 
-              False if person was ignored or there was an issue
+    bool: True if email was parsed successfully, 
+        False if person was ignored or there was an issue
     """
 
     result = False
@@ -816,13 +816,13 @@ def fetch_emails(imap, folder, messages):
     Note: Originally considered filtering by specific email addresses
     (e.g. 'HEADER FROM "spongebob@gmail.com"') but decided against it.
 
-    Args:
-        imap: The IMAP connection
-        folder: The folder name e.g. "INBOX"
-        messages: Where the parsed Message objects are appended
+    Arguments:
+    imap (IMAP4_SSL): The IMAP connection
+    folder (str): The folder name e.g. "INBOX"
+    messages (list): Where the parsed Message objects are appended
 
     Returns:
-        int: The number of emails successfully parsed
+    int: The number of emails successfully parsed
     """
 
     count = 0
@@ -893,14 +893,14 @@ def load_messages(dest_file, messages, reactions, the_config):
     accessible folders (except those in not-email-folders). Some parameters
     are unused but required by the interface.
 
-    Args:
-        dest_file: Not used but needed for the interface
-        messages: Where the Message objects will go
-        reactions: Not used but needed for the interface
-        the_config: Specific settings
+    Parameters:
+    dest_file (str): Not used but needed for the interface
+    messages (list): Where the Message objects will go
+    reactions (list): Not used but needed for the interface
+    the_config (Config): Specific settings
 
     Returns:
-        int: The number of messages loaded
+    int: The number of messages loaded
     """
 
     count = 0
