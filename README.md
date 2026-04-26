@@ -6,11 +6,13 @@ Tool to pull IMAP emails and convert them to atomic Markdown files.
 
 The code in this repo relies heavily on my [message_md](https://github.com/thephm/message_md/tree/main/config) classes which contain generic `Message`, `Person`, `Group` and other classes and the methods to convert messages to Markdown files. Be sure to read the [README](https://github.com/thephm/message_md/blob/main/README.md) and the configuration [guide](https://github.com/thephm/message_md/blob/main/docs/guide.md) for that repo first.
 
-Also relies on markdownify so do this:
+Install the Python dependencies first:
 
 ```bash
-pip install markdownify
+pip install -r requirements.txt
 ```
+
+You also need the sibling repos referenced by the local import paths in `email_md.py`, including `message_md` and `hal`.
 
 Refer to your email provider's help pages to find out how to get an application password. If they require two-factor authentication (2FA), then this tool won't work for you.
 

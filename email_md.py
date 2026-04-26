@@ -1,11 +1,10 @@
 ﻿import imaplib
 import email
 from email.header import decode_header
+from email.utils import getaddresses, parsedate_to_datetime
 import webbrowser
 import os
 import re
-from dateutil import parser
-from email.utils import getaddresses
 
 import markdownify
 from markdownify import markdownify as md
@@ -47,6 +46,18 @@ CONTENT_DISPOSITION = 'Content-Disposition'
 CONTENT_TYPE_TEXT_PLAIN = 'text/plain'
 
 email_not_found = []
+
+
+def parse_email_header_datetime(date_header):
+    cleaned_date_header = date_header.split(' (', 1)[0]
+    parsed_date = parsedate_to_datetime(cleaned_date_header)
+    if parsed_date.tzinfo is None:
+        parsed_date = parsed_date.replace(tzinfo=timezone.utc)
+    return parsed_date
+
+
+def parse_iso_date(value):
+    return datetime.fromisoformat(value).date()
 
 # attribution to https://thepythoncode.com/article/reading-emails-in-python
 
@@ -202,8 +213,7 @@ def parse_header(the_email, the_message):
     # remove extra info after tz offset
     if date_header:
         try:
-            date_header = date_header.split(' (', 1)[0]
-            parsed_date = parser.parse(date_header)
+            parsed_date = parse_email_header_datetime(date_header)
 
             # format the date and time
             date_str = parsed_date.strftime('%Y-%m-%d')
@@ -271,11 +281,11 @@ def download_attachment(part, the_message):
                 the_attachment.custom_filename = filename
                 the_message.add_attachment(the_attachment)
             except Exception as e:
-                logging.error("download_attachment: {e}")
+                logging.error(f"download_attachment: {e}")
                 pass
 
         except Exception as e:
-            logging.error("{the_config.get_str(STR_COULD_NOT_CREATE_MEDIA_FOLDER)}: {file_path}") 
+            logging.error(f"{the_config.get_str(the_config.STR_COULD_NOT_CREATE_MEDIA_FOLDER)}: {file_path}. Error {e}")
             pass
 
 # Process all parts of a multi-part email message 
@@ -872,8 +882,8 @@ def fetch_emails(imap, folder, messages):
         # stop if this message was sent before the start date
         try:
             if the_message.date_str:
-                message_date = parser.parse(the_message.date_str)
-                from_date = parser.parse(the_config.from_date)
+                message_date = parse_iso_date(the_message.date_str)
+                from_date = parse_iso_date(the_config.from_date)
                 if message_date < from_date:
                     continue
         except Exception as e:
