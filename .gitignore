@@ -3,3 +3,5 @@
 *.sln
 .venv/*
 pyvenv.cfg
+__pycache__/
+*.py[cod]
