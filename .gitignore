@@ -1,7 +1,7 @@
 .vs
 *.pyproj
 *.sln
-.venv/*
+.venv
 pyvenv.cfg
 __pycache__/
 *.py[cod]
