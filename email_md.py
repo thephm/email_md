@@ -11,6 +11,7 @@ from markdownify import markdownify as md
 
 import time
 import json
+import copy
 import csv
 from datetime import datetime, timezone
 import tzlocal 
@@ -46,6 +47,30 @@ CONTENT_DISPOSITION = 'Content-Disposition'
 CONTENT_TYPE_TEXT_PLAIN = 'text/plain'
 
 email_not_found = []
+
+original_get_frontmatter = markdown.get_frontmatter
+
+
+def quote_frontmatter_string(value):
+    quoted = json.dumps(value, ensure_ascii=False)
+    return re.sub(r'[\x7f-\x9f\u2028\u2029]',
+                  lambda match: f'\\u{ord(match.group()):04x}', quoted)
+
+
+def get_email_frontmatter(the_message, the_config):
+    frontmatter_message = copy.copy(the_message)
+    frontmatter_message.subject = ""
+    frontmatter_message.time_str = ""
+    frontmatter = original_get_frontmatter(frontmatter_message, the_config)
+    frontmatter = re.sub(r'^' + re.escape(markdown.YAML_SUBJECT) + r':.*\n',
+                         '', frontmatter, flags=re.MULTILINE)
+
+    time_value = quote_frontmatter_string(the_message.time_str) if the_message.time_str else "null"
+    fields = markdown.YAML_TIME + ": " + time_value + "\n"
+    if the_message.subject and isinstance(the_message.subject, str):
+        fields += markdown.YAML_SUBJECT + ": " + quote_frontmatter_string(the_message.subject) + "\n"
+
+    return frontmatter.replace(markdown.YAML_TIME + ": null\n", fields, 1)
 
 
 def parse_email_header_datetime(date_header):
@@ -987,6 +1012,8 @@ the_reactions = []
 the_config = config.Config()
 
 if message_md.setup(the_config, markdown.YAML_SERVICE_EMAIL):
+
+    markdown.get_frontmatter = get_email_frontmatter
 
     # needs to be after setup so the command line parameters override the
     # values defined in the settings file
